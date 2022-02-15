@@ -11,9 +11,6 @@
       "schematics": {
         "@schematics/angular:component": {
           "style": "scss"
-        },
-        "@schematics/angular:application": {
-          "strict": true
         }
       },
       "architect": {
@@ -63,6 +60,11 @@
                 "glob": "marker-shadow.png",
                 "input": "node_modules/leaflet/dist/images/",
                 "output": "/"
+              },
+              {
+                "glob": "**/*",
+                "input": "node_modules/material-design-icons/iconfont/",
+                "output": "assets/fonts"
               }
             ],
             "styles": [
@@ -76,10 +78,7 @@
               "node_modules/leaflet/dist/leaflet.css",
               "src/app/modules/home/components/widget/lib/maps/markers.scss",
               "node_modules/leaflet.markercluster/dist/MarkerCluster.css",
-              "node_modules/leaflet.markercluster/dist/MarkerCluster.Default.css",
-              "node_modules/@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css",
-              "node_modules/prismjs/themes/prism.css",
-              "node_modules/prismjs/plugins/line-numbers/prism-line-numbers.css"
+              "node_modules/leaflet.markercluster/dist/MarkerCluster.Default.css"
             ],
             "stylePreprocessorOptions": {
               "includePaths": [
@@ -89,15 +88,7 @@
             "scripts": [
               "node_modules/tinycolor2/dist/tinycolor-min.js",
               "node_modules/split.js/dist/split.min.js",
-              "node_modules/systemjs/dist/system.min.js",
-              "node_modules/marked/lib/marked.js",
-              "node_modules/prismjs/prism.js",
-              "node_modules/prismjs/components/prism-css.min.js",
-              "node_modules/prismjs/components/prism-bash.min.js",
-              "node_modules/prismjs/components/prism-json.min.js",
-              "node_modules/prismjs/components/prism-javascript.min.js",
-              "node_modules/prismjs/components/prism-typescript.min.js",
-              "node_modules/prismjs/plugins/line-numbers/prism-line-numbers.min.js"
+              "node_modules/systemjs/dist/system.js"
             ],
             "customWebpackConfig": {
               "path": "./extra-webpack.config.js"
@@ -120,6 +111,7 @@
               "classnames",
               "raf",
               "moment-timezone",
+              "moment",
               "tinycolor2",
               "json-schema-defaults",
               "leaflet-providers",
@@ -127,10 +119,7 @@
               "jquery",
               "jquery.terminal",
               "tooltipster",
-              "jstree",
-              "qrcode",
-              "wcwidth",
-              "leaflet-polylinedecorator"
+              "jstree"
             ]
           },
           "configurations": {
@@ -141,16 +130,10 @@
                   "with": "src/environments/environment.prod.ts"
                 }
               ],
-              "optimization": {
-                "scripts": true,
-                "styles": {
-                  "minify": true,
-                  "inlineCritical": false
-                },
-                "fonts": false
-              },
+              "optimization": true,
               "outputHashing": "all",
               "sourceMap": false,
+              "extractCss": true,
               "namedChunks": false,
               "extractLicenses": true,
               "vendorChunk": false,
@@ -162,39 +145,21 @@
                   "maximumError": "12mb"
                 }
               ]
-            },
-            "development": {
-              "buildOptimizer": false,
-              "optimization": {
-                "scripts": false,
-                "styles": {
-                  "minify": false,
-                  "inlineCritical": false
-                },
-                "fonts": false
-              },
-              "vendorChunk": true,
-              "extractLicenses": false,
-              "sourceMap": true,
-              "namedChunks": true
             }
           }
         },
         "serve": {
           "builder": "@angular-builders/custom-webpack:dev-server",
           "options": {
+            "aot": true,
             "browserTarget": "thingsboard:build",
             "proxyConfig": "proxy.conf.js"
           },
           "configurations": {
             "production": {
               "browserTarget": "thingsboard:build:production"
-            },
-            "development": {
-              "browserTarget": "thingsboard:build:development"
             }
-          },
-          "defaultConfiguration": "development"
+          }
         },
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
@@ -264,7 +229,6 @@
   },
   "defaultProject": "thingsboard",
   "cli": {
-    "packageManager": "yarn",
-    "analytics": false
+    "packageManager": "yarn"
   }
 }

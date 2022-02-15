@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2022 The Thingsboard Authors
+/// Copyright © 2016-2021 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -27,8 +27,7 @@ import {
   WidgetControllerDescriptor,
   WidgetType,
   widgetType,
-  WidgetTypeDescriptor,
-  WidgetTypeDetails,
+  WidgetTypeDescriptor, WidgetTypeDetails,
   WidgetTypeParameters
 } from '@shared/models/widget.models';
 import { Timewindow, WidgetTimewindow } from '@shared/models/time/time.models';
@@ -37,7 +36,7 @@ import {
   IStateController,
   IWidgetSubscription,
   IWidgetUtils,
-  RpcApi, StateParams,
+  RpcApi,
   SubscriptionEntityInfo,
   TimewindowFunctions,
   WidgetActionsApi,
@@ -49,9 +48,9 @@ import { RafService } from '@core/services/raf.service';
 import { WidgetTypeId } from '@shared/models/id/widget-type-id';
 import { TenantId } from '@shared/models/id/tenant-id';
 import { WidgetLayout } from '@shared/models/dashboard.models';
-import { formatValue, isDefined } from '@core/utils';
+import { isDefined, isDefinedAndNotNull, isNumeric} from '@core/utils';
 import { forkJoin, of } from 'rxjs';
-import { Store } from '@ngrx/store';
+import {select, Store} from '@ngrx/store';
 import { AppState } from '@core/core.state';
 import {
   NotificationHorizontalPosition,
@@ -78,10 +77,8 @@ import { PageLink } from '@shared/models/page/page-link';
 import { SortOrder } from '@shared/models/page/sort-order';
 import { DomSanitizer } from '@angular/platform-browser';
 import { Router } from '@angular/router';
-import { catchError, map, mergeMap, switchMap } from 'rxjs/operators';
-import { FormattedData } from '@home/components/widget/lib/maps/map-models';
-import { TbPopoverComponent } from '@shared/components/popover.component';
-import { EntityId } from '@shared/models/id/entity-id';
+import {environment as env} from "@env/environment";
+import {selectUserLang} from "@core/settings/settings.selectors";
 
 export interface IWidgetAction {
   name: string;
@@ -89,13 +86,9 @@ export interface IWidgetAction {
   onAction: ($event: Event) => void;
 }
 
-export type ShowWidgetHeaderActionFunction = (ctx: WidgetContext, data: FormattedData[]) => boolean;
-
 export interface WidgetHeaderAction extends IWidgetAction {
   displayName: string;
   descriptor: WidgetActionDescriptor;
-  useShowWidgetHeaderActionFunction: boolean;
-  showWidgetHeaderActionFunction: ShowWidgetHeaderActionFunction;
 }
 
 export interface WidgetAction extends IWidgetAction {
@@ -110,11 +103,10 @@ export class WidgetContext {
 
   constructor(public dashboard: IDashboardComponent,
               private dashboardWidget: IDashboardWidget,
-              private widget: Widget,
-              public parentDashboard?: IDashboardComponent) {}
+              private widget: Widget) {}
 
   get stateController(): IStateController {
-    return this.parentDashboard ? this.parentDashboard.stateController : this.dashboard.stateController;
+    return this.dashboard.stateController;
   }
 
   get aliasController(): IAliasController {
@@ -145,10 +137,6 @@ export class WidgetContext {
     this.changeDetectorValue = cd;
   }
 
-  set containerChangeDetector(cd: ChangeDetectorRef) {
-    this.containerChangeDetectorValue = cd;
-  }
-
   get currentUser(): AuthUser {
     if (this.store) {
       return getCurrentAuthUser(this.store);
@@ -175,7 +163,6 @@ export class WidgetContext {
   router: Router;
 
   private changeDetectorValue: ChangeDetectorRef;
-  private containerChangeDetectorValue: ChangeDetectorRef;
 
   inited = false;
   destroyed = false;
@@ -197,25 +184,16 @@ export class WidgetContext {
   };
 
   controlApi: RpcApi = {
-    sendOneWayCommand: (method, params, timeout, persistent,
-                        retries, additionalInfo, requestUUID) => {
+    sendOneWayCommand: (method, params, timeout) => {
       if (this.defaultSubscription) {
-        return this.defaultSubscription.sendOneWayCommand(method, params, timeout, persistent, retries, additionalInfo, requestUUID);
+        return this.defaultSubscription.sendOneWayCommand(method, params, timeout);
       } else {
         return of(null);
       }
     },
-    sendTwoWayCommand: (method, params, timeout, persistent,
-                        retries, additionalInfo, requestUUID) => {
+    sendTwoWayCommand: (method, params, timeout) => {
       if (this.defaultSubscription) {
-        return this.defaultSubscription.sendTwoWayCommand(method, params, timeout, persistent, retries, additionalInfo, requestUUID);
-      } else {
-        return of(null);
-      }
-    },
-    completedCommand: () => {
-      if (this.defaultSubscription) {
-        return this.defaultSubscription.completedCommand();
+        return this.defaultSubscription.sendTwoWayCommand(method, params, timeout);
       } else {
         return of(null);
       }
@@ -223,7 +201,31 @@ export class WidgetContext {
   };
 
   utils: IWidgetUtils = {
-    formatValue
+    formatValue: (value: any, dec?: number, units?: string, showZeroDecimals?: boolean): string | undefined => {
+      let locale = env.defaultLang.replace('_', '-');
+      this.store.pipe(
+        select(selectUserLang)).subscribe((data) => {
+          if (isDefinedAndNotNull(data)) locale = data.replace('_', '-')
+      });
+
+      if (isDefinedAndNotNull(value) && isNumeric(value) &&
+        (isDefinedAndNotNull(dec) || isDefinedAndNotNull(units) || Number(value).toString() === value)) {
+        let formatted: string | number = Number(value);
+        if (isDefinedAndNotNull(dec)) {
+          formatted = formatted.toFixed(dec);
+        }
+        if (!showZeroDecimals) {
+          formatted = (Number(formatted));
+        }
+        formatted = Number(formatted).toLocaleString(locale);
+        if (isDefinedAndNotNull(units) && units.length > 0) {
+          formatted += ' ' + units;
+        }
+        return formatted;
+      } else {
+        return value !== null ? value : '';
+      }
+    }
   };
 
   $container: JQuery<HTMLElement>;
@@ -233,7 +235,6 @@ export class WidgetContext {
   $scope: IDynamicWidgetComponent;
   isEdit: boolean;
   isMobile: boolean;
-  toastTargetId: string;
 
   widgetNamespace?: string;
   subscriptionApi?: WidgetSubscriptionApi;
@@ -261,71 +262,43 @@ export class WidgetContext {
 
   store?: Store<AppState>;
 
-  private popoverComponents: TbPopoverComponent[] = [];
-
   rxjs = {
     forkJoin,
-    of,
-    map,
-    mergeMap,
-    switchMap,
-    catchError
+    of
   };
-
-  registerPopoverComponent(popoverComponent: TbPopoverComponent) {
-    this.popoverComponents.push(popoverComponent);
-    popoverComponent.tbDestroy.subscribe(() => {
-      const index = this.popoverComponents.indexOf(popoverComponent, 0);
-      if (index > -1) {
-        this.popoverComponents.splice(index, 1);
-      }
-    });
-  }
-
-  updatePopoverPositions() {
-    this.popoverComponents.forEach(comp => {
-      comp.updatePosition();
-    });
-  }
-
-  setPopoversHidden(hidden: boolean) {
-    this.popoverComponents.forEach(comp => {
-      comp.tbHidden = hidden;
-    });
-  }
 
   showSuccessToast(message: string, duration: number = 1000,
                    verticalPosition: NotificationVerticalPosition = 'bottom',
                    horizontalPosition: NotificationHorizontalPosition = 'left',
-                   target: string = 'dashboardRoot') {
+                   target?: string) {
     this.showToast('success', message, duration, verticalPosition, horizontalPosition, target);
   }
 
   showInfoToast(message: string,
                 verticalPosition: NotificationVerticalPosition = 'bottom',
                 horizontalPosition: NotificationHorizontalPosition = 'left',
-                target: string = 'dashboardRoot') {
+                target?: string) {
     this.showToast('info', message, undefined, verticalPosition, horizontalPosition, target);
   }
 
   showWarnToast(message: string,
                 verticalPosition: NotificationVerticalPosition = 'bottom',
                 horizontalPosition: NotificationHorizontalPosition = 'left',
-                target: string = 'dashboardRoot') {
+                target?: string) {
     this.showToast('warn', message, undefined, verticalPosition, horizontalPosition, target);
   }
 
   showErrorToast(message: string,
                  verticalPosition: NotificationVerticalPosition = 'bottom',
                  horizontalPosition: NotificationHorizontalPosition = 'left',
-                 target: string = 'dashboardRoot') {
+                 target?: string) {
     this.showToast('error', message, undefined, verticalPosition, horizontalPosition, target);
   }
 
   showToast(type: NotificationType, message: string, duration: number,
             verticalPosition: NotificationVerticalPosition = 'bottom',
             horizontalPosition: NotificationHorizontalPosition = 'left',
-            target: string = 'dashboardRoot') {
+            target?: string) {
     this.store.dispatch(new ActionNotificationShow(
       {
         message,
@@ -353,16 +326,6 @@ export class WidgetContext {
       }
       try {
         this.changeDetectorValue.detectChanges();
-      } catch (e) {
-        // console.log(e);
-      }
-    }
-  }
-
-  detectContainerChanges() {
-    if (!this.destroyed) {
-      try {
-        this.containerChangeDetectorValue.detectChanges();
       } catch (e) {
         // console.log(e);
       }
@@ -547,28 +510,4 @@ export function toWidgetType(widgetInfo: WidgetInfo, id: WidgetTypeId, tenantId:
     name: widgetInfo.widgetName,
     descriptor
   };
-}
-
-export function updateEntityParams(params: StateParams, targetEntityParamName?: string, targetEntityId?: EntityId,
-                                   entityName?: string, entityLabel?: string) {
-  if (targetEntityId) {
-    let targetEntityParams: StateParams;
-    if (targetEntityParamName && targetEntityParamName.length) {
-      targetEntityParams = params[targetEntityParamName];
-      if (!targetEntityParams) {
-        targetEntityParams = {};
-        params[targetEntityParamName] = targetEntityParams;
-        params.targetEntityParamName = targetEntityParamName;
-      }
-    } else {
-      targetEntityParams = params;
-    }
-    targetEntityParams.entityId = targetEntityId;
-    if (entityName) {
-      targetEntityParams.entityName = entityName;
-    }
-    if (entityLabel) {
-      targetEntityParams.entityLabel = entityLabel;
-    }
-  }
 }

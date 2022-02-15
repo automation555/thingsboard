@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2022 The Thingsboard Authors
+/// Copyright © 2016-2021 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import {
   isDefinedAndNotNull,
   isEqual,
   isNumber,
-  isNumeric,
   isUndefined
 } from '@app/core/utils';
 import { IWidgetSubscription, WidgetSubscriptionOptions } from '@core/api/widget-api.models';
@@ -77,7 +76,7 @@ export class TbFlot {
   private settings: TbFlotSettings;
   private comparisonEnabled: boolean;
 
-  private tooltip: JQuery<any>;
+  private readonly tooltip: JQuery<any>;
 
   private readonly yAxisTickFormatter: TbFlotTicksFormatterFunction;
   private readonly yaxis: TbFlotAxisOptions;
@@ -119,7 +118,6 @@ export class TbFlot {
   private mouseleaveHandler = this.onFlotMouseLeave.bind(this);
   private flotClickHandler = this.onFlotClick.bind(this);
 
-  private readonly showTooltip: boolean;
   private readonly animatedPie: boolean;
   private pieDataAnimationDuration: number;
   private pieData: DatasourceData[];
@@ -149,9 +147,8 @@ export class TbFlot {
     this.chartType = this.chartType || 'line';
     this.settings = ctx.settings as TbFlotSettings;
     this.utils = this.ctx.$injector.get(UtilsService);
-    this.showTooltip = isDefined(this.settings.showTooltip) ? this.settings.showTooltip : true;
-    this.tooltip = this.showTooltip ? $('#flot-series-tooltip') : null;
-    if (this.tooltip?.length === 0) {
+    this.tooltip = $('#flot-series-tooltip');
+    if (this.tooltip.length === 0) {
       this.tooltip = this.createTooltipElement();
     }
 
@@ -205,7 +202,7 @@ export class TbFlot {
         this.xaxis.labelFont.weight = 'bold';
       }
 
-      this.yAxisTickFormatter = this.formatYAxisTicks.bind(this);
+      this.yAxisTickFormatter = this.formatAxisTicks.bind(this);
 
       this.yaxis.tickFormatter = this.yAxisTickFormatter;
 
@@ -260,12 +257,9 @@ export class TbFlot {
         }
       }
 
+      this.xaxis.tickFormatter = this.formatAxisTicks.bind(this);
+
       this.options.xaxes[0] = deepClone(this.xaxis);
-      if (this.settings.xaxis && this.settings.xaxis.showLabels === false) {
-        this.options.xaxes[0].tickFormatter = () => {
-          return '';
-        };
-      }
 
       this.options.series = {};
 
@@ -280,7 +274,7 @@ export class TbFlot {
         };
       }
 
-      if ((this.chartType === 'line' || this.chartType === 'bar') && isFinite(this.settings.thresholdsLineWidth)) {
+      if (this.chartType === 'line' && isFinite(this.settings.thresholdsLineWidth)) {
         this.options.grid.markingsLineWidth = this.settings.thresholdsLineWidth;
       }
 
@@ -336,7 +330,8 @@ export class TbFlot {
 
       if (this.options.series.pie.label.show) {
         this.options.series.pie.label.formatter = (label, series) => {
-          return `<div class='pie-label'>${series.dataKey.label}<br/>${Math.round(series.percent)}%</div>`;
+          return `<div class='pie-label'>${series.dataKey.label}<br/>` +
+            `${this.ctx.utils.formatValue(series.percent,0,'%')}</div>`;
         };
         this.options.series.pie.label.radius = 3 / 4;
         this.options.series.pie.label.background = {
@@ -361,11 +356,6 @@ export class TbFlot {
       const xaxis = deepClone(this.xaxis);
       xaxis.position = 'top';
       if (this.settings.xaxisSecond) {
-        if (this.settings.xaxisSecond.showLabels === false) {
-          xaxis.tickFormatter = () => {
-            return '';
-          };
-        }
         xaxis.label = this.utils.customTranslation(this.settings.xaxisSecond.title, this.settings.xaxisSecond.title) || null;
         xaxis.position = this.settings.xaxisSecond.axisPosition;
       }
@@ -844,7 +834,7 @@ export class TbFlot {
     data.forEach((keyData) => {
       if (keyData && keyData.data && keyData.data[0]) {
         const attrValue = keyData.data[0][1];
-        if (isNumeric(attrValue) && isFinite(attrValue)) {
+        if (isFinite(attrValue)) {
           const settings: TbFlotThresholdKeySettings = keyData.dataKey.settings;
           const colorIndex = this.subscription.data.length + allThresholds.length;
           this.generateThreshold(allThresholds, settings.yaxis, settings.lineWidth, settings.color, colorIndex, attrValue);
@@ -980,7 +970,7 @@ export class TbFlot {
       valueContent = this.ctx.utils.formatValue(value, trackDecimals, units);
     }
     if (isNumber(percent)) {
-      valueContent += ' (' + Math.round(percent) + ' %)';
+      valueContent += ' (' + this.ctx.utils.formatValue(percent, 0, '%', true) + ')';
     }
     const valueSpan =  $(`<span>${valueContent}</span>`);
     valueSpan.css({
@@ -1122,26 +1112,33 @@ export class TbFlot {
     return content;
   }
 
-  private formatYAxisTicks(value: number, axis?: TbFlotPlotAxis): string {
+  private formatAxisTicks(value: number, axis?: TbFlotPlotAxis): string {
     if (this.settings.yaxis && this.settings.yaxis.showLabels === false) {
       return '';
     }
     if (axis.options.ticksFormatterFunction) {
       return axis.options.ticksFormatterFunction(value);
     }
-    const factor = axis.options.tickDecimals ? Math.pow(10, axis.options.tickDecimals) : 1;
-    let formatted = '' + Math.round(value * factor) / factor;
-    if (isDefined(axis.options.tickDecimals) && axis.options.tickDecimals !== null) {
-      const decimal = formatted.indexOf('.');
-      const precision = decimal === -1 ? 0 : formatted.length - decimal - 1;
-      if (precision < axis.options.tickDecimals) {
-        formatted = (precision ? formatted : formatted + '.') + ('' + factor).substr(1, axis.options.tickDecimals - precision);
+    if (axis.options.mode && axis.options.mode === 'time') {
+      let unit = axis.tickSize[1];
+      switch(unit) {
+        case "second":
+          return moment(value).format('HH:mm:ss');
+        case "minute":
+          return moment(value).format('HH:mm');
+        case "hour":
+          return moment(value).format('MM-DD HH:mm');
+        case "day":
+          return moment(value).format('MM-DD');
+        case "month":
+          return moment(value).format('YYYY-MM');
+        case "year":
+          return moment(value).format('YYYY');
+        default:
+          return moment(value).format('YYYY-MM-DD HH:mm:ss');
       }
     }
-    if (axis.options.tickUnits) {
-      formatted += ' ' + axis.options.tickUnits;
-    }
-    return formatted;
+    return this.ctx.utils.formatValue(value, axis.options.tickDecimals, axis.options.tickUnits, this.hideZeros);
   }
 
   private enableMouseEvents() {
@@ -1171,7 +1168,7 @@ export class TbFlot {
   }
 
   private onFlotHover(e: any, pos: JQueryPlotPoint, item: TbFlotPlotItem) {
-    if (!this.plot || !this.tooltip) {
+    if (!this.plot) {
       return;
     }
     if ((!this.tooltipIndividual || item) && !this.ctx.isEdit) {
