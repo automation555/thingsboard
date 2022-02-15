@@ -16,7 +16,6 @@
 package org.thingsboard.server.actors;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -31,6 +30,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.rule.engine.api.MailService;
 import org.thingsboard.rule.engine.api.SmsService;
 import org.thingsboard.rule.engine.api.sms.SmsSenderFactory;
@@ -96,7 +96,6 @@ import org.thingsboard.server.service.transport.TbCoreToTransportService;
 
 import javax.annotation.Nullable;
 import javax.annotation.PostConstruct;
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Optional;
@@ -108,8 +107,6 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Component
 public class ActorSystemContext {
-
-    protected final ObjectMapper mapper = new ObjectMapper();
 
     private final ConcurrentMap<TenantId, DebugTbRateLimits> debugPerTenantLimits = new ConcurrentHashMap<>();
 
@@ -477,7 +474,7 @@ public class ActorSystemContext {
     }
 
     private JsonNode toBodyJson(String serviceId, ComponentLifecycleEvent event, Optional<Exception> e) {
-        ObjectNode node = mapper.createObjectNode().put("server", serviceId).put("event", event.name());
+        ObjectNode node = JacksonUtil.newObjectNode().put("server", serviceId).put("event", event.name());
         if (e.isPresent()) {
             node = node.put("success", false);
             node = node.put("error", toString(e.get()));
@@ -488,7 +485,7 @@ public class ActorSystemContext {
     }
 
     private JsonNode toBodyJson(String serviceId, String method, String body) {
-        return mapper.createObjectNode().put("server", serviceId).put("method", method).put("error", body);
+        return JacksonUtil.newObjectNode().put("server", serviceId).put("method", method).put("error", body);
     }
 
     public TopicPartitionInfo resolve(ServiceType serviceType, TenantId tenantId, EntityId entityId) {
@@ -525,48 +522,44 @@ public class ActorSystemContext {
 
     private void persistDebugAsync(TenantId tenantId, EntityId entityId, String type, TbMsg tbMsg, String relationType, Throwable error, String failureMessage) {
         if (checkLimits(tenantId, tbMsg, error)) {
-            try {
-                Event event = new Event();
-                event.setTenantId(tenantId);
-                event.setEntityId(entityId);
-                event.setType(DataConstants.DEBUG_RULE_NODE);
+            Event event = new Event();
+            event.setTenantId(tenantId);
+            event.setEntityId(entityId);
+            event.setType(DataConstants.DEBUG_RULE_NODE);
 
-                String metadata = mapper.writeValueAsString(tbMsg.getMetaData().getData());
+            String metadata = JacksonUtil.toString(tbMsg.getMetaData().getData());
 
-                ObjectNode node = mapper.createObjectNode()
-                        .put("type", type)
-                        .put("server", getServiceId())
-                        .put("entityId", tbMsg.getOriginator().getId().toString())
-                        .put("entityName", tbMsg.getOriginator().getEntityType().name())
-                        .put("msgId", tbMsg.getId().toString())
-                        .put("msgType", tbMsg.getType())
-                        .put("dataType", tbMsg.getDataType().name())
-                        .put("relationType", relationType)
-                        .put("data", tbMsg.getData())
-                        .put("metadata", metadata);
+            ObjectNode node = JacksonUtil.newObjectNode()
+                    .put("type", type)
+                    .put("server", getServiceId())
+                    .put("entityId", tbMsg.getOriginator().getId().toString())
+                    .put("entityName", tbMsg.getOriginator().getEntityType().name())
+                    .put("msgId", tbMsg.getId().toString())
+                    .put("msgType", tbMsg.getType())
+                    .put("dataType", tbMsg.getDataType().name())
+                    .put("relationType", relationType)
+                    .put("data", tbMsg.getData())
+                    .put("metadata", metadata);
 
-                if (error != null) {
-                    node = node.put("error", toString(error));
-                } else if (failureMessage != null) {
-                    node = node.put("error", failureMessage);
+            if (error != null) {
+                node = node.put("error", toString(error));
+            } else if (failureMessage != null) {
+                node = node.put("error", failureMessage);
+            }
+
+            event.setBody(node);
+            ListenableFuture<Event> future = eventService.saveAsync(event);
+            Futures.addCallback(future, new FutureCallback<Event>() {
+                @Override
+                public void onSuccess(@Nullable Event event) {
+
                 }
 
-                event.setBody(node);
-                ListenableFuture<Event> future = eventService.saveAsync(event);
-                Futures.addCallback(future, new FutureCallback<Event>() {
-                    @Override
-                    public void onSuccess(@Nullable Event event) {
-
-                    }
-
-                    @Override
-                    public void onFailure(Throwable th) {
-                        log.error("Could not save debug Event for Node", th);
-                    }
-                }, MoreExecutors.directExecutor());
-            } catch (IOException ex) {
-                log.warn("Failed to persist rule node debug message", ex);
-            }
+                @Override
+                public void onFailure(Throwable th) {
+                    log.error("Could not save debug Event for Node", th);
+                }
+            }, MoreExecutors.directExecutor());
         }
     }
 
@@ -595,7 +588,7 @@ public class ActorSystemContext {
         event.setEntityId(entityId);
         event.setType(DataConstants.DEBUG_RULE_CHAIN);
 
-        ObjectNode node = mapper.createObjectNode()
+        ObjectNode node = JacksonUtil.newObjectNode()
                 //todo: what fields are needed here?
                 .put("server", getServiceId())
                 .put("message", "Reached debug mode rate limit!");

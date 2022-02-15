@@ -18,6 +18,7 @@ package org.thingsboard.server.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.DataConstants;
 import org.thingsboard.server.common.data.Event;
 import org.thingsboard.server.common.data.id.EntityId;
@@ -29,7 +30,6 @@ import org.thingsboard.server.common.data.rule.RuleChain;
 import org.thingsboard.server.common.data.rule.RuleChainMetaData;
 import org.thingsboard.server.dao.rule.RuleChainService;
 
-import java.io.IOException;
 import java.util.function.Predicate;
 
 /**
@@ -65,11 +65,7 @@ public abstract class AbstractRuleEngineControllerTest extends AbstractControlle
 
     protected JsonNode getMetadata(Event outEvent) {
         String metaDataStr = outEvent.getBody().get("metadata").asText();
-        try {
-            return mapper.readTree(metaDataStr);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        return JacksonUtil.toJsonNode(metaDataStr);
     }
 
     protected Predicate<Event> filterByCustomEvent() {

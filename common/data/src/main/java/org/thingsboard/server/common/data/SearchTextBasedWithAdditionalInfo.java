@@ -18,8 +18,8 @@ package org.thingsboard.server.common.data;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.id.UUIDBased;
 
 import java.io.ByteArrayInputStream;
@@ -35,7 +35,6 @@ import java.util.function.Consumer;
 @Slf4j
 public abstract class SearchTextBasedWithAdditionalInfo<I extends UUIDBased> extends SearchTextBased<I> implements HasAdditionalInfo {
 
-    public static final ObjectMapper mapper = new ObjectMapper();
     private transient JsonNode additionalInfo;
     @JsonIgnore
     private byte[] additionalInfoBytes;
@@ -83,12 +82,7 @@ public abstract class SearchTextBasedWithAdditionalInfo<I extends UUIDBased> ext
         } else {
             byte[] data = binaryData.get();
             if (data != null) {
-                try {
-                    return mapper.readTree(new ByteArrayInputStream(data));
-                } catch (IOException e) {
-                    log.warn("Can't deserialize json data: ", e);
-                    return null;
-                }
+                return JacksonUtil.fromBytes(data);
             } else {
                 return null;
             }
@@ -97,10 +91,6 @@ public abstract class SearchTextBasedWithAdditionalInfo<I extends UUIDBased> ext
 
     public static void setJson(JsonNode json, Consumer<JsonNode> jsonConsumer, Consumer<byte[]> bytesConsumer) {
         jsonConsumer.accept(json);
-        try {
-            bytesConsumer.accept(mapper.writeValueAsBytes(json));
-        } catch (JsonProcessingException e) {
-            log.warn("Can't serialize json data: ", e);
-        }
+        bytesConsumer.accept(JacksonUtil.writeValueAsBytes(json));
     }
 }

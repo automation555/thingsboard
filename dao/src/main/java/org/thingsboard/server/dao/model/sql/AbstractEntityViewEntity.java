@@ -16,16 +16,15 @@
 package org.thingsboard.server.dao.model.sql;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.annotations.Type;
 import org.hibernate.annotations.TypeDef;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.EntityView;
 import org.thingsboard.server.common.data.id.CustomerId;
-import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.EntityIdFactory;
 import org.thingsboard.server.common.data.id.EntityViewId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -90,8 +89,6 @@ public abstract class AbstractEntityViewEntity<T extends EntityView> extends Bas
     @Column(name = ModelConstants.ENTITY_VIEW_ADDITIONAL_INFO_PROPERTY)
     private JsonNode additionalInfo;
 
-    private static final ObjectMapper mapper = new ObjectMapper();
-
     public AbstractEntityViewEntity() {
         super();
     }
@@ -113,11 +110,7 @@ public abstract class AbstractEntityViewEntity<T extends EntityView> extends Bas
         }
         this.type = entityView.getType();
         this.name = entityView.getName();
-        try {
-            this.keys = mapper.writeValueAsString(entityView.getKeys());
-        } catch (IOException e) {
-            log.error("Unable to serialize entity view keys!", e);
-        }
+        this.keys = JacksonUtil.toString(entityView.getKeys());
         this.startTs = entityView.getStartTimeMs();
         this.endTs = entityView.getEndTimeMs();
         this.searchText = entityView.getSearchText();
@@ -165,11 +158,7 @@ public abstract class AbstractEntityViewEntity<T extends EntityView> extends Bas
         }
         entityView.setType(type);
         entityView.setName(name);
-        try {
-            entityView.setKeys(mapper.readValue(keys, TelemetryEntityView.class));
-        } catch (IOException e) {
-            log.error("Unable to read entity view keys!", e);
-        }
+        entityView.setKeys(JacksonUtil.fromString(keys, TelemetryEntityView.class));
         entityView.setStartTimeMs(startTs);
         entityView.setEndTimeMs(endTs);
         entityView.setAdditionalInfo(additionalInfo);

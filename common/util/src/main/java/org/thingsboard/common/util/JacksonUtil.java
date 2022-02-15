@@ -15,23 +15,48 @@
  */
 package org.thingsboard.common.util;
 
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.json.JsonWriteFeature;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.springframework.util.StringUtils;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  * Created by Valerii Sosliuk on 5/12/2017.
  */
 public class JacksonUtil {
 
-    public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER;
+    private static final ObjectMapper OBJECT_MAPPER_WITH_UNQUOTED_FIELD_NAMES;
+
+    static {
+        OBJECT_MAPPER = getNewObjectMapperWithJavaTimeModule();
+        OBJECT_MAPPER_WITH_UNQUOTED_FIELD_NAMES = getNewObjectMapperWithJavaTimeModule().
+                configure(JsonWriteFeature.QUOTE_FIELD_NAMES.mappedFeature(), false).
+                configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+    }
+
+    public static ObjectMapper getNewObjectMapperWithJavaTimeModule() {
+        return new ObjectMapper().registerModule(new JavaTimeModule());
+    }
+
+    public static ObjectMapper getObjectMapper() {
+        return OBJECT_MAPPER;
+    }
+
+    public static ObjectMapper getObjectMapperWithUnquotedFieldNames() {
+        return OBJECT_MAPPER_WITH_UNQUOTED_FIELD_NAMES;
+    }
 
     public static <T> T convertValue(Object fromValue, Class<T> toValueType) {
         try {
@@ -55,7 +80,16 @@ public class JacksonUtil {
         try {
             return string != null ? OBJECT_MAPPER.readValue(string, clazz) : null;
         } catch (IOException e) {
-            throw new IllegalArgumentException("The given string value: "
+            throw new IllegalArgumentException("The given String value: "
+                    + string + " cannot be transformed to Json object", e);
+        }
+    }
+
+    public static <T> T fromString(String string, JavaType javaType) {
+        try {
+            return string != null ? OBJECT_MAPPER.readValue(string, javaType) : null;
+        } catch (IOException e) {
+            throw new IllegalArgumentException("The given String value: "
                     + string + " cannot be transformed to Json object", e);
         }
     }
@@ -64,7 +98,7 @@ public class JacksonUtil {
         try {
             return string != null ? OBJECT_MAPPER.readValue(string, valueTypeRef) : null;
         } catch (IOException e) {
-            throw new IllegalArgumentException("The given string value: "
+            throw new IllegalArgumentException("The given String value: "
                     + string + " cannot be transformed to Json object", e);
         }
     }
@@ -72,6 +106,15 @@ public class JacksonUtil {
     public static <T> T fromBytes(byte[] bytes, Class<T> clazz) {
         try {
             return bytes != null ? OBJECT_MAPPER.readValue(bytes, clazz) : null;
+        } catch (IOException e) {
+            throw new IllegalArgumentException("The given String value: "
+                    + Arrays.toString(bytes) + " cannot be transformed to Json object", e);
+        }
+    }
+
+    public static <T> T fromBytes(byte[] bytes, TypeReference<T> valueTypeRef) {
+        try {
+            return bytes != null ? OBJECT_MAPPER.readValue(bytes, valueTypeRef) : null;
         } catch (IOException e) {
             throw new IllegalArgumentException("The given string value: "
                     + Arrays.toString(bytes) + " cannot be transformed to Json object", e);
@@ -97,13 +140,29 @@ public class JacksonUtil {
     }
 
     public static JsonNode toJsonNode(String value) {
-        if (value == null || value.isEmpty()) {
-            return null;
-        }
         try {
-            return OBJECT_MAPPER.readTree(value);
+            return !StringUtils.isEmpty(value) ? OBJECT_MAPPER.readTree(value) : null;
         } catch (IOException e) {
-            throw new IllegalArgumentException(e);
+            throw new IllegalArgumentException("The given String object value: "
+                    + value + " cannot be transformed to a JsonNode", e);
+        }
+    }
+
+    public static JsonNode toJsonNode(File value) {
+        try {
+            return value != null ? OBJECT_MAPPER.readTree(value) : null;
+        } catch (IOException e) {
+            throw new IllegalArgumentException("The given File object value: "
+                    + value + " cannot be transformed to a JsonNode", e);
+        }
+    }
+
+    public static JsonNode toJsonNodeUnquotedFieldNames(String value) {
+        try {
+            return !StringUtils.isEmpty(value) ? OBJECT_MAPPER_WITH_UNQUOTED_FIELD_NAMES.readTree(value) : null;
+        } catch (IOException e) {
+            throw new IllegalArgumentException("The given String object value: "
+                    + value + " cannot be transformed to a JsonNode", e);
         }
     }
 
@@ -117,6 +176,22 @@ public class JacksonUtil {
 
     public static ObjectNode newObjectNode() {
         return OBJECT_MAPPER.createObjectNode();
+    }
+
+    public static ObjectNode newObjectNodeUnquotedFieldNames() {
+        return OBJECT_MAPPER_WITH_UNQUOTED_FIELD_NAMES.createObjectNode();
+    }
+
+    public static ArrayNode createArrayNode() {
+        return OBJECT_MAPPER.createArrayNode();
+    }
+
+    public static ArrayNode createArrayNodeUnquotedFieldNames() {
+        return OBJECT_MAPPER_WITH_UNQUOTED_FIELD_NAMES.createArrayNode();
+    }
+
+    public static JavaType constructCollectionType(Class collectionClass, Class elementClass) {
+        return OBJECT_MAPPER.getTypeFactory().constructCollectionType(collectionClass, elementClass);
     }
 
     public static <T> T clone(T value) {

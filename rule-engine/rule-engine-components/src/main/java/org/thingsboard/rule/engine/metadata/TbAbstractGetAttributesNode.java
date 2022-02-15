@@ -15,17 +15,13 @@
  */
 package org.thingsboard.rule.engine.metadata;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.json.JsonWriteFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.google.gson.JsonParseException;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.BooleanUtils;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.rule.engine.api.TbContext;
 import org.thingsboard.rule.engine.api.TbNode;
 import org.thingsboard.rule.engine.api.TbNodeConfiguration;
@@ -37,7 +33,6 @@ import org.thingsboard.server.common.data.kv.KvEntry;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
 import org.thingsboard.server.common.msg.TbMsg;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -52,8 +47,6 @@ import static org.thingsboard.server.common.data.DataConstants.SHARED_SCOPE;
 
 public abstract class TbAbstractGetAttributesNode<C extends TbGetAttributesNodeConfiguration, T extends EntityId> implements TbNode {
 
-    private static ObjectMapper mapper = new ObjectMapper();
-
     private static final String VALUE = "value";
     private static final String TS = "ts";
 
@@ -62,8 +55,6 @@ public abstract class TbAbstractGetAttributesNode<C extends TbGetAttributesNodeC
     @Override
     public void init(TbContext ctx, TbNodeConfiguration configuration) throws TbNodeException {
         this.config = loadGetAttributesNodeConfig(configuration);
-        mapper.configure(JsonWriteFeature.QUOTE_FIELD_NAMES.mappedFeature(), false);
-        mapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
     }
 
     protected abstract C loadGetAttributesNodeConfig(TbNodeConfiguration configuration) throws TbNodeException;
@@ -158,7 +149,7 @@ public abstract class TbAbstractGetAttributesNode<C extends TbGetAttributesNodeC
     }
 
     private void putValueWithTs(TbMsg msg, TsKvEntry r) {
-        ObjectNode value = mapper.createObjectNode();
+        ObjectNode value = JacksonUtil.newObjectNodeUnquotedFieldNames();
         value.put(TS, r.getTs());
         switch (r.getDataType()) {
             case STRING:
@@ -174,11 +165,7 @@ public abstract class TbAbstractGetAttributesNode<C extends TbGetAttributesNodeC
                 value.put(VALUE, r.getDoubleValue().get());
                 break;
             case JSON:
-                try {
-                    value.set(VALUE, mapper.readTree(r.getJsonValue().get()));
-                } catch (IOException e) {
-                    throw new JsonParseException("Can't parse jsonValue: " + r.getJsonValue().get(), e);
-                }
+                value.set(VALUE, JacksonUtil.toJsonNodeUnquotedFieldNames(r.getJsonValue().get()));
                 break;
         }
         msg.getMetaData().putValue(r.getKey(), value.toString());
