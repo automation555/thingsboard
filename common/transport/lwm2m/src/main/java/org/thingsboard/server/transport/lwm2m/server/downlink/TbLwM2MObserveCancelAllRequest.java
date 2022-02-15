@@ -16,29 +16,22 @@
 package org.thingsboard.server.transport.lwm2m.server.downlink;
 
 import lombok.Builder;
-import org.eclipse.leshan.core.request.ContentFormat;
-import org.eclipse.leshan.core.response.ObserveResponse;
+import lombok.Getter;
 import org.thingsboard.server.transport.lwm2m.server.LwM2MOperationType;
 
-import java.util.Optional;
+public class TbLwM2MObserveCancelAllRequest implements TbLwM2MDownlinkRequest<Integer> {
 
-public class TbLwM2MObserveRequest extends AbstractTbLwM2MTargetedDownlinkRequest<ObserveResponse> implements HasContentFormat {
-
-    private final Optional<ContentFormat> requestContentFormat;
+    @Getter
+    private final long timeout;
 
     @Builder
-    private TbLwM2MObserveRequest(String versionedId, long timeout, ContentFormat requestContentFormat) {
-        super(versionedId, timeout);
-        this.requestContentFormat = Optional.ofNullable(requestContentFormat);
+    private TbLwM2MObserveCancelAllRequest(long timeout) {
+        this.timeout = timeout;
     }
 
     @Override
     public LwM2MOperationType getType() {
-        return LwM2MOperationType.OBSERVE;
+        return LwM2MOperationType.OBSERVE_CANCEL_ALL;
     }
 
-    @Override
-    public Optional<ContentFormat> getRequestContentFormat() {
-        return this.requestContentFormat;
-    }
 }
