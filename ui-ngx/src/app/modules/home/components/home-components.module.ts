@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2022 The Thingsboard Authors
+/// Copyright © 2016-2021 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -117,6 +117,7 @@ import { DefaultTenantProfileConfigurationComponent } from '@home/components/pro
 import { TenantProfileConfigurationComponent } from '@home/components/profile/tenant/tenant-profile-configuration.component';
 import { SmsProviderConfigurationComponent } from '@home/components/sms/sms-provider-configuration.component';
 import { AwsSnsProviderConfigurationComponent } from '@home/components/sms/aws-sns-provider-configuration.component';
+import { SmppSmsProviderConfigurationComponent } from '@home/components/sms/smpp-sms-provider-configuration.component';
 import { TwilioSmsProviderConfigurationComponent } from '@home/components/sms/twilio-sms-provider-configuration.component';
 import { Lwm2mProfileComponentsModule } from '@home/components/profile/device/lwm2m/lwm2m-profile-components.module';
 import { DashboardPageComponent } from '@home/components/dashboard-page/dashboard-page.component';
@@ -138,7 +139,7 @@ import { DisplayWidgetTypesPanelComponent } from '@home/components/dashboard-pag
 import { AlarmDurationPredicateValueComponent } from '@home/components/profile/alarm/alarm-duration-predicate-value.component';
 import { DashboardImageDialogComponent } from '@home/components/dashboard-page/dashboard-image-dialog.component';
 import { WidgetContainerComponent } from '@home/components/widget/widget-container.component';
-import { SnmpDeviceProfileTransportModule } from '@home/components/profile/device/snmp/snmp-device-profile-transport.module';
+import { SnmpDeviceProfileTransportModule } from '@home/components/profile/device/snpm/snmp-device-profile-transport.module';
 import { DeviceCredentialsModule } from '@home/components/device/device-credentials.module';
 import { DeviceProfileCommonModule } from '@home/components/profile/device/common/device-profile-common.module';
 import {
@@ -253,6 +254,7 @@ import { EntityDetailsPageComponent } from '@home/components/entity/entity-detai
       EditAlarmDetailsDialogComponent,
       SmsProviderConfigurationComponent,
       AwsSnsProviderConfigurationComponent,
+      SmppSmsProviderConfigurationComponent,
       TwilioSmsProviderConfigurationComponent,
       DashboardToolbarComponent,
       DashboardPageComponent,
@@ -366,6 +368,7 @@ import { EntityDetailsPageComponent } from '@home/components/entity/entity-detai
     AlarmScheduleComponent,
     SmsProviderConfigurationComponent,
     AwsSnsProviderConfigurationComponent,
+    SmppSmsProviderConfigurationComponent,
     TwilioSmsProviderConfigurationComponent,
     DashboardToolbarComponent,
     DashboardPageComponent,
