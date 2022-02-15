@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.thingsboard.server.service.security.exception.AuthMethodNotSupportedException;
 import org.thingsboard.server.service.security.model.UserPrincipal;
 
@@ -73,7 +72,7 @@ public class RestLoginProcessingFilter extends AbstractAuthenticationProcessingF
             throw new AuthenticationServiceException("Invalid login request payload");
         }
 
-        if (StringUtils.isBlank(loginRequest.getUsername()) || StringUtils.isEmpty(loginRequest.getPassword())) {
+        if (StringUtils.isBlank(loginRequest.getUsername()) || StringUtils.isBlank(loginRequest.getPassword())) {
             throw new AuthenticationServiceException("Username or Password not provided");
         }
 
