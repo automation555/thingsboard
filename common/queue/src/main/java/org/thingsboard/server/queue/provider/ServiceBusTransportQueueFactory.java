@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,15 +31,14 @@ import org.thingsboard.server.queue.TbQueueRequestTemplate;
 import org.thingsboard.server.queue.azure.servicebus.TbServiceBusAdmin;
 import org.thingsboard.server.queue.azure.servicebus.TbServiceBusConsumerTemplate;
 import org.thingsboard.server.queue.azure.servicebus.TbServiceBusProducerTemplate;
-import org.thingsboard.server.queue.azure.servicebus.TbServiceBusQueueConfigs;
-import org.thingsboard.server.queue.azure.servicebus.TbServiceBusSettings;
 import org.thingsboard.server.queue.common.DefaultTbQueueRequestTemplate;
 import org.thingsboard.server.queue.common.TbProtoQueueMsg;
 import org.thingsboard.server.queue.discovery.TbServiceInfoProvider;
 import org.thingsboard.server.queue.settings.TbQueueCoreSettings;
-import org.thingsboard.server.queue.settings.TbQueueRuleEngineSettings;
 import org.thingsboard.server.queue.settings.TbQueueTransportApiSettings;
 import org.thingsboard.server.queue.settings.TbQueueTransportNotificationSettings;
+import org.thingsboard.server.queue.settings.TbServiceBusQueueConfigs;
+import org.thingsboard.server.queue.settings.TbServiceBusSettings;
 
 import javax.annotation.PreDestroy;
 
@@ -52,17 +51,14 @@ public class ServiceBusTransportQueueFactory implements TbTransportQueueFactory 
     private final TbServiceBusSettings serviceBusSettings;
     private final TbServiceInfoProvider serviceInfoProvider;
     private final TbQueueCoreSettings coreSettings;
-    private final TbQueueRuleEngineSettings ruleEngineSettings;
 
     private final TbQueueAdmin coreAdmin;
     private final TbQueueAdmin transportApiAdmin;
     private final TbQueueAdmin notificationAdmin;
-    private final TbQueueAdmin ruleEngineAdmin;
 
     public ServiceBusTransportQueueFactory(TbQueueTransportApiSettings transportApiSettings,
                                            TbQueueTransportNotificationSettings transportNotificationSettings,
                                            TbServiceBusSettings serviceBusSettings,
-                                           TbQueueRuleEngineSettings ruleEngineSettings,
                                            TbServiceInfoProvider serviceInfoProvider,
                                            TbQueueCoreSettings coreSettings,
                                            TbServiceBusQueueConfigs serviceBusQueueConfigs) {
@@ -71,12 +67,10 @@ public class ServiceBusTransportQueueFactory implements TbTransportQueueFactory 
         this.serviceBusSettings = serviceBusSettings;
         this.serviceInfoProvider = serviceInfoProvider;
         this.coreSettings = coreSettings;
-        this.ruleEngineSettings = ruleEngineSettings;
 
         this.coreAdmin = new TbServiceBusAdmin(serviceBusSettings, serviceBusQueueConfigs.getCoreConfigs());
         this.transportApiAdmin = new TbServiceBusAdmin(serviceBusSettings, serviceBusQueueConfigs.getTransportApiConfigs());
         this.notificationAdmin = new TbServiceBusAdmin(serviceBusSettings, serviceBusQueueConfigs.getNotificationsConfigs());
-        this.ruleEngineAdmin = new TbServiceBusAdmin(serviceBusSettings, serviceBusQueueConfigs.getRuleEngineConfigs());
     }
 
     @Override
@@ -102,7 +96,7 @@ public class ServiceBusTransportQueueFactory implements TbTransportQueueFactory 
 
     @Override
     public TbQueueProducer<TbProtoQueueMsg<ToRuleEngineMsg>> createRuleEngineMsgProducer() {
-        return new TbServiceBusProducerTemplate<>(ruleEngineAdmin, serviceBusSettings, ruleEngineSettings.getTopic());
+        return new TbServiceBusProducerTemplate<>(transportApiAdmin, serviceBusSettings, transportApiSettings.getRequestsTopic());
     }
 
     @Override
@@ -132,9 +126,6 @@ public class ServiceBusTransportQueueFactory implements TbTransportQueueFactory 
         }
         if (notificationAdmin != null) {
             notificationAdmin.destroy();
-        }
-        if (ruleEngineAdmin != null) {
-            ruleEngineAdmin.destroy();
         }
     }
 }

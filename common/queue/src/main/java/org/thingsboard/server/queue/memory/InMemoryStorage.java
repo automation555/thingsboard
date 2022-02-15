@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,10 +42,6 @@ public final class InMemoryStorage {
         });
     }
 
-    public int getLagTotal() {
-        return storage.values().stream().map(BlockingQueue::size).reduce(0, Integer::sum);
-    }
-
     public static InMemoryStorage getInstance() {
         if (instance == null) {
             synchronized (InMemoryStorage.class) {
@@ -61,7 +57,7 @@ public final class InMemoryStorage {
         return storage.computeIfAbsent(topic, (t) -> new LinkedBlockingQueue<>()).add(msg);
     }
 
-    public <T extends TbQueueMsg> List<T> get(String topic) throws InterruptedException {
+    public <T extends TbQueueMsg> List<T> get(String topic) {
         if (storage.containsKey(topic)) {
             List<T> entities;
             @SuppressWarnings("unchecked")

@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ import com.google.common.util.concurrent.ListenableFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.TenantInfo;
 import org.thingsboard.server.common.data.TenantProfile;
@@ -36,9 +36,8 @@ import org.thingsboard.server.dao.device.DeviceService;
 import org.thingsboard.server.dao.entity.AbstractEntityService;
 import org.thingsboard.server.dao.entityview.EntityViewService;
 import org.thingsboard.server.dao.exception.DataValidationException;
-import org.thingsboard.server.dao.ota.OtaPackageService;
-import org.thingsboard.server.dao.resource.ResourceService;
-import org.thingsboard.server.dao.rpc.RpcService;
+import org.thingsboard.server.dao.queue.QueueService;
+import org.thingsboard.server.dao.queue.QueueStatsService;
 import org.thingsboard.server.dao.rule.RuleChainService;
 import org.thingsboard.server.dao.service.DataValidator;
 import org.thingsboard.server.dao.service.PaginatedRemover;
@@ -55,9 +54,6 @@ public class TenantServiceImpl extends AbstractEntityService implements TenantSe
 
     private static final String DEFAULT_TENANT_REGION = "Global";
     public static final String INCORRECT_TENANT_ID = "Incorrect tenantId ";
-
-    @Value("${zk.enabled}")
-    private Boolean zkEnabled;
 
     @Autowired
     private TenantDao tenantDao;
@@ -96,13 +92,10 @@ public class TenantServiceImpl extends AbstractEntityService implements TenantSe
     private RuleChainService ruleChainService;
 
     @Autowired
-    private ResourceService resourceService;
+    private QueueService queueService;
 
     @Autowired
-    private OtaPackageService otaPackageService;
-
-    @Autowired
-    private RpcService rpcService;
+    private QueueStatsService queueStatsService;
 
     @Override
     public Tenant findTenantById(TenantId tenantId) {
@@ -126,6 +119,7 @@ public class TenantServiceImpl extends AbstractEntityService implements TenantSe
     }
 
     @Override
+    @Transactional
     public Tenant saveTenant(Tenant tenant) {
         log.trace("Executing saveTenant [{}]", tenant);
         tenant.setRegion(DEFAULT_TENANT_REGION);
@@ -137,7 +131,11 @@ public class TenantServiceImpl extends AbstractEntityService implements TenantSe
         Tenant savedTenant = tenantDao.save(tenant.getId(), tenant);
         if (tenant.getId() == null) {
             deviceProfileService.createDefaultDeviceProfile(savedTenant.getId());
-            apiUsageStateService.createDefaultApiUsageState(savedTenant.getId(), null);
+            apiUsageStateService.createDefaultApiUsageState(savedTenant.getId());
+            TenantProfile tenantProfile = this.tenantProfileService.findTenantProfileById(TenantId.SYS_TENANT_ID, savedTenant.getTenantProfileId());
+            if(tenantProfile.isIsolatedTbRuleEngine()) {
+                queueService.createDefaultMainQueue(tenantProfile, savedTenant);
+            }
         }
         return savedTenant;
     }
@@ -148,18 +146,16 @@ public class TenantServiceImpl extends AbstractEntityService implements TenantSe
         Validator.validateId(tenantId, INCORRECT_TENANT_ID + tenantId);
         customerService.deleteCustomersByTenantId(tenantId);
         widgetsBundleService.deleteWidgetsBundlesByTenantId(tenantId);
+        dashboardService.deleteDashboardsByTenantId(tenantId);
         entityViewService.deleteEntityViewsByTenantId(tenantId);
         assetService.deleteAssetsByTenantId(tenantId);
         deviceService.deleteDevicesByTenantId(tenantId);
         deviceProfileService.deleteDeviceProfilesByTenantId(tenantId);
-        dashboardService.deleteDashboardsByTenantId(tenantId);
-        edgeService.deleteEdgesByTenantId(tenantId);
         userService.deleteTenantAdmins(tenantId);
         ruleChainService.deleteRuleChainsByTenantId(tenantId);
         apiUsageStateService.deleteApiUsageStateByTenantId(tenantId);
-        resourceService.deleteResourcesByTenantId(tenantId);
-        otaPackageService.deleteOtaPackagesByTenantId(tenantId);
-        rpcService.deleteAllRpcByTenantId(tenantId);
+        queueService.deleteQueuesByTenantId(tenantId);
+        queueService.deleteQueuesByTenantId(tenantId);
         tenantDao.removeById(tenantId, tenantId.getId());
         deleteEntityRelations(tenantId, tenantId);
     }
@@ -168,20 +164,20 @@ public class TenantServiceImpl extends AbstractEntityService implements TenantSe
     public PageData<Tenant> findTenants(PageLink pageLink) {
         log.trace("Executing findTenants pageLink [{}]", pageLink);
         Validator.validatePageLink(pageLink);
-        return tenantDao.findTenantsByRegion(TenantId.SYS_TENANT_ID, DEFAULT_TENANT_REGION, pageLink);
+        return tenantDao.findTenantsByRegion(new TenantId(EntityId.NULL_UUID), DEFAULT_TENANT_REGION, pageLink);
     }
 
     @Override
     public PageData<TenantInfo> findTenantInfos(PageLink pageLink) {
         log.trace("Executing findTenantInfos pageLink [{}]", pageLink);
         Validator.validatePageLink(pageLink);
-        return tenantDao.findTenantInfosByRegion(TenantId.SYS_TENANT_ID, DEFAULT_TENANT_REGION, pageLink);
+        return tenantDao.findTenantInfosByRegion(new TenantId(EntityId.NULL_UUID), DEFAULT_TENANT_REGION, pageLink);
     }
 
     @Override
     public void deleteTenants() {
         log.trace("Executing deleteTenants");
-        tenantsRemover.removeEntities(TenantId.SYS_TENANT_ID, DEFAULT_TENANT_REGION);
+        tenantsRemover.removeEntities(new TenantId(EntityId.NULL_UUID), DEFAULT_TENANT_REGION);
     }
 
     private DataValidator<Tenant> tenantValidator =
@@ -194,7 +190,6 @@ public class TenantServiceImpl extends AbstractEntityService implements TenantSe
                     if (!StringUtils.isEmpty(tenant.getEmail())) {
                         validateEmail(tenant.getEmail());
                     }
-                    validateTenantProfile(tenantId, tenant);
                 }
 
                 @Override
@@ -202,14 +197,6 @@ public class TenantServiceImpl extends AbstractEntityService implements TenantSe
                     Tenant old = tenantDao.findById(TenantId.SYS_TENANT_ID, tenantId.getId());
                     if (old == null) {
                         throw new DataValidationException("Can't update non existing tenant!");
-                    }
-                    validateTenantProfile(tenantId, tenant);
-                }
-
-                private void validateTenantProfile(TenantId tenantId, Tenant tenant) {
-                    TenantProfile tenantProfileById = tenantProfileService.findTenantProfileById(tenantId, tenant.getTenantProfileId());
-                    if (!zkEnabled && (tenantProfileById.isIsolatedTbCore() || tenantProfileById.isIsolatedTbRuleEngine())) {
-                        throw new DataValidationException("Can't use isolated tenant profiles in monolith setup!");
                     }
                 }
             };
@@ -224,7 +211,7 @@ public class TenantServiceImpl extends AbstractEntityService implements TenantSe
 
                 @Override
                 protected void removeEntity(TenantId tenantId, Tenant entity) {
-                    deleteTenant(TenantId.fromUUID(entity.getUuidId()));
+                    deleteTenant(new TenantId(entity.getUuidId()));
                 }
             };
 }

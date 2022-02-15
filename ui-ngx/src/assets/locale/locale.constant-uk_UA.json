@@ -123,7 +123,14 @@
         "general-policy": "Загальна політика",
         "max-failed-login-attempts": "Максимальна кількість невдалих спроб входу, перш ніж обліковий запис заблоковано",
         "minimum-max-failed-login-attempts-range": "Максимальна кількість невдалих спроб входу не може бути негативною",
-        "user-lockout-notification-email": "У разі блокування облікового запису користувача, надішліть сповіщення на електронну пошту"
+        "user-lockout-notification-email": "У разі блокування облікового запису користувача, надішліть сповіщення на електронну пошту"б
+        "queue-select-name": "Оберіть ім'я для Queue",
+        "queue-name": "Ім'я для Queue",
+        "queue-name-required": "Поле 'Ім'я для Queue' обов`язкове для заповнення!",
+        "queues": "Черги",
+        "queue-partitions": "Розділи",
+        "queue-submit-strategy": "Стратегія відправки",
+        "queue-processing-strategy": "Стратегія обробки"
     },
     "alarm": {
         "alarm": "Сигнал тривоги",
@@ -794,7 +801,9 @@
         "credentials-type": "Тип авторизаційних даних",
         "access-token": "Маркер доступу",
         "access-token-required": "Необхідно вказати маркер доступу.",
-        "access-token-invalid": "Маркер доступу має бути від 1 до 32 символів.",
+        "access-token-invalid": "Маркер доступу має бути від 1 до 20 символів.",
+        "rsa-key": "Публічний ключ RSA",
+        "rsa-key-required": "Необхідно вказати публічний ключ RSA.",
         "secret": "Секрет",
         "secret-required": "Необхідно вказати секрет.",
         "device-type": "Тип пристрою",
@@ -1199,6 +1208,7 @@
         "out": "Out",
         "metadata": "Метадані",
         "message": "Повідомлення",
+        "entity": "Сутність",
         "message-id": "Id повідомлення",
         "message-type": "Тип повідомлення",
         "data-type": "Тип даних",
@@ -1209,11 +1219,7 @@
         "success": "Успіх",
         "failed": "Невдача",
         "messages-processed": "Повідомлення опрацьовані",
-        "errors-occurred": "Виникли помилки",
-        "all-events": "Всі",
-        "entity-type": "Тип сутності",
-        "clear-request-title": "Видалити всі події",
-        "clear-request-text": "Ви впевнені, що хочете видалити всі події?"
+        "errors-occurred": "Виникли помилки"
     },
     "extension": {
         "extensions": "Розширення",
@@ -1677,11 +1683,7 @@
         "profile": "Профіль",
         "last-login-time": "Час останнього входу",
         "change-password": "Змінити пароль",
-        "current-password": "Поточний пароль",
-        "copy-jwt-token": "Копіювати JWT токен",
-        "valid-till": "Дійсний до {{expirationData}}",
-        "tokenCopiedMessage": "JWT токен скопійовано в буфер обміну",
-        "tokenCopiedWarnMessage": "JWT токен не є дійсним! Перезавантажте сторінку."
+        "current-password": "Поточний пароль"
     },
     "relation": {
         "relations": "Відношення",
@@ -1827,6 +1829,28 @@
         "test": "Тест",
         "help": "Допомога",
         "reset-debug-mode": "Вимкнути режим налогодження у всіх правилах"
+    },
+    "queue": {
+      "select-name": "Оберіть ім'я для Queue",
+      "name": "Ім'я для Queue",
+      "name-required": "Поле 'Ім'я для Queue' обов`язкове для заповнення!",
+      "topic-required": "Поле 'Тема для Queue' обов`язкове для заповнення!",
+      "queues": "Черги",
+      "search": "Пошук черги",
+      "add" : "Додати чергу",
+      "details": "Подробиці",
+      "topic": "Тема",
+      "submit-strategy": "Стратегія відправки",
+      "processing-strategy": "Стратегія обробки",
+      "poll-interval": "Інтервал",
+      "partitions": "Розділи",
+      "processing-timeout": "Час очікування обробки",
+      "batch-size": "Розмір пакету передачі",
+      "retries": "Повторні спроби",
+      "failure-percentage": "Процент відмов",
+      "pause-between-retries": "Пауза між повторними спробами",
+      "max-pause-between-retries": "Максимальна пауза між повторними спробами",
+      "delete": "Видалити чергу"
     },
     "scheduler": {
         "scheduler": "Планувальник",
@@ -1975,11 +1999,6 @@
         "no-timezones-matching": "Не знайдено жодних часових поясів, які відповідають '{{timezone}}'.",
         "timezone-required": "Необхідно вказати часовий пояс."
     },
-    "queue": {
-      "select_name": "Виберіть ім'я для Queue",
-      "name": "Iм'я для Queue",
-      "name_required": "Поле 'Имя для Queue' обязательно к заполнению!"
-    },
     "tenant": {
         "tenant": "Власник",
         "tenants": "Власники",
@@ -2054,15 +2073,15 @@
         "delete-users-title": "Ви впевнені, що хочете видалити { count, plural, 1 {1 користувача} other {# користувачів} }?",
         "delete-users-action-title": "Видалити { count, plural, 1 {1 користувача} other {# користувачів} }",
         "delete-users-text": "Будьте обережні, після підтвердження, усіх виділених користувачів буде видалено, і всі пов'язані з ними дані стануть недоступними.",
-        "activation-email-sent-message": "Активаційний лист успішно надіслано!",
-        "resend-activation": "Повторно надіслати активаційного листа",
+        "activation-email-sent-message": "Повідомлення про активацію успішно надіслано!",
+        "resend-activation": "Повторно надіслати активацію",
         "email": "Електронна пошта",
         "email-required": "Необхідно вказати електронну пошту.",
         "invalid-email-format": "Недійсний формат електронної пошти.",
         "first-name": "Ім'я",
         "last-name": "Прізвище",
         "description": "Опис",
-        "default-dashboard": "Панель візуалізації за замовчуванням",
+        "default-dashboard": "Стандартна панель візуалізації",
         "always-fullscreen": "Завжди в повноекранному режимі",
         "select-user": "Вибрати користувача",
         "no-users-matching": "Не знайдено жодного користувача, що відповідає '{{entity}}'.",
@@ -2071,7 +2090,7 @@
         "display-activation-link": "Показати посилання для активації",
         "send-activation-mail": "Надіслати активаційного листа",
         "activation-link": "Активаційне посилання для користувача",
-        "activation-link-text": "Для активації користувача, скористайтеся наступним <a href='{{activationLink}}' target='_blank'>посиланням</a> :",
+        "activation-link-text": "Для активувації користувача, скористайтеся наступним <a href='{{activationLink}}' target='_blank'>activation link</a> :",
         "copy-activation-link": "Скопіювати активаційне посилання ",
         "activation-link-copied-message": "Посилання на активацію користувача було скопійовано в буфер обміну",
         "selected-users": "{ count, plural, 1 {1 користувач} other {# користувачі} } вибрано",
@@ -2082,9 +2101,7 @@
         "disable-account": "Вимкнути обліковий запис користувача",
         "enable-account": "Увімкнути обліковий запис користувача",
         "enable-account-message": "Обліковий запис користувача успішно увімкнено!",
-        "disabled-account-message": "Обліковий запис користувача успішно вимкнено!",
-        "copyId": "Копіювати Id користувача",
-        "idCopiedMessage": "Id користувача було скопійовано в буфер обміну"
+        "disabled-account-message": "Обліковий запис користувача успішно вимкнено!"
     },
     "value": {
         "type": "Тип значення",
@@ -2151,7 +2168,7 @@
         "widget-template-load-failed-error": "Не вдалося завантажити шаблон віджета!",
         "add": "Додати віджет",
         "undo": "Скасувати зміни віджета",
-        "export": "Експортувати віджет",
+        "export": "Експртувати віджет",
         "export-data": "Експортувати дані віджетів",
         "export-to-csv": "Експортувати дані в CSV...",
         "export-to-excel": "Експортувати дані в XLS..."
@@ -2202,7 +2219,7 @@
         "advanced": "Додатково",
         "title": "Назва",
         "general-settings": "Загальні налаштування",
-        "display-title": "Відобразити назву у віджеті",
+        "display-title": "Відобразити назву",
         "drop-shadow": "Тінь",
         "enable-fullscreen": "Увімкнути повноекранний режим",
         "enable-data-export": "Увімкнути експорт даних",
@@ -2212,7 +2229,7 @@
         "margin": "Границі",
         "widget-style": "Стиль віджетів",
         "title-style": "Стиль заголовка",
-        "mobile-mode-settings": "мобільний режим",
+        "mobile-mode-settings": "Налаштування мобільного режиму",
         "order": "Порядок",
         "height": "Висота",
         "units": "Спеціальний символ після значення",
@@ -2220,7 +2237,6 @@
         "timewindow": "Вікно часу",
         "use-dashboard-timewindow": "Використати вікно часу на панелі візуалізації",
         "display-timewindow": "Показувати вікно часу",
-        "legend": "Легенда",
         "display-legend": "Показати легенду",
         "datasources": "Джерела даних",
         "maximum-datasources": "Максимально { count, plural, 1 {1 дозволене джерело даних.} other {# дозволені джерела даних } }",
@@ -2246,13 +2262,9 @@
         "delete-action": "Видалити дію",
         "delete-action-title": "Видалити дію віджета",
         "delete-action-text": "Ви впевнені, що хочете видалити дію віджета '{{actionName}}'?",
-        "title-icon": "Іконка у назві віджету",
-        "display-icon": "Показувати іконку у назві віджету",
+        "display-icon": "Показувати іконку у назві",
         "icon-color": "Колір іконки",
-        "icon-size": "Розмір іконки",
-        "advanced-settings": "Розширені налаштування",
-        "data-settings": "Налаштування даних",
-        "no-data-display-message": "\"Немає данних для відображення\" альтернативний текст"
+        "icon-size": "Розмір іконки"
     },
     "widget-type": {
         "import": "Імпортувати тип віджета",
@@ -2359,47 +2371,6 @@
             "update-attribute": "Оновити атрибут",
             "update-timeseries": "Оновити телеметрію",
             "value": "Значення"
-        },
-        "persistent-table": {
-            "rpc-id": "RPC ID",
-            "message-type": "Тип повідомлення",
-            "method": "Метод",
-            "params": "Параметри",
-            "created-time": "Час створення",
-            "expiration-time": "Час життя",
-            "retries": "Повторні спроби",
-            "status": "Статус",
-            "filter": "Фільтр",
-            "refresh": "Оновити",
-            "add": "Додати RPC запит",
-            "details": "Деталі",
-            "delete": "Видалити",
-            "delete-request-title": "Видалити RPC запит",
-            "delete-request-text": "Ви впевнені, що хочете видалити RPC запит?",
-            "details-title": "Деталі RPC ID: ",
-            "additional-info": "Додаткова інформація",
-            "response": "Відповідь",
-            "any-status": "Будь-який статус",
-            "rpc-status-list": "Список RPC статусів",
-            "no-request-prompt": "Запитів не знайдено",
-            "send-request": "Відправити запит",
-            "add-title": "Додати новий RPC запит",
-            "method-error": "Необхідно вказати метод.",
-            "white-space-error": "Пробіли не допускаються.",
-            "rpc-status": {
-                "QUEUED": "В ЧЕРЗІ",
-                "SENT": "ВІДПРАВЛЕНО",
-                "DELIVERED": "ДОСТАВЛЕННО",
-                "SUCCESSFUL": "УСПІШНО",
-                "TIMEOUT": "ЧАС МИНУВ",
-                "EXPIRED": "ПРОСРОЧЕНО",
-                "FAILED": "НЕ ВДАЛО"
-            },
-            "rpc-search-status-all": "ВСІ",
-            "message-types": {
-                "false": "Двосторонній",
-                "true": "Односторонній"
-            }
         }
     },
     "white-labeling": {

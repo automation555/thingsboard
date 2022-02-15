@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2022 The Thingsboard Authors
+/// Copyright © 2016-2021 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -27,20 +27,14 @@ export enum AliasFilterType {
   stateEntity = 'stateEntity',
   assetType = 'assetType',
   deviceType = 'deviceType',
-  edgeType = 'edgeType',
   entityViewType = 'entityViewType',
   apiUsageState = 'apiUsageState',
   relationsQuery = 'relationsQuery',
   assetSearchQuery = 'assetSearchQuery',
   deviceSearchQuery = 'deviceSearchQuery',
-  edgeSearchQuery = 'edgeSearchQuery',
-  entityViewSearchQuery = 'entityViewSearchQuery'
+  entityViewSearchQuery = 'entityViewSearchQuery',
+  ruleEngineStats = 'ruleEngineStats'
 }
-
-export const edgeAliasFilterTypes = new Array<string>(
-  AliasFilterType.edgeType,
-  AliasFilterType.edgeSearchQuery
-);
 
 export const aliasFilterTypeTranslationMap = new Map<AliasFilterType, string>(
   [
@@ -51,19 +45,22 @@ export const aliasFilterTypeTranslationMap = new Map<AliasFilterType, string>(
     [ AliasFilterType.stateEntity, 'alias.filter-type-state-entity' ],
     [ AliasFilterType.assetType, 'alias.filter-type-asset-type' ],
     [ AliasFilterType.deviceType, 'alias.filter-type-device-type' ],
-    [ AliasFilterType.edgeType, 'alias.filter-type-edge-type' ],
     [ AliasFilterType.entityViewType, 'alias.filter-type-entity-view-type' ],
     [ AliasFilterType.apiUsageState, 'alias.filter-type-apiUsageState' ],
     [ AliasFilterType.relationsQuery, 'alias.filter-type-relations-query' ],
     [ AliasFilterType.assetSearchQuery, 'alias.filter-type-asset-search-query' ],
     [ AliasFilterType.deviceSearchQuery, 'alias.filter-type-device-search-query' ],
-    [ AliasFilterType.edgeSearchQuery, 'alias.filter-type-edge-search-query' ],
-    [ AliasFilterType.entityViewSearchQuery, 'alias.filter-type-entity-view-search-query' ]
+    [ AliasFilterType.entityViewSearchQuery, 'alias.filter-type-entity-view-search-query' ],
+    [ AliasFilterType.ruleEngineStats, 'alias.filter-type-rule-engine-stats' ],
   ]
 );
 
 export interface SingleEntityFilter {
   singleEntity?: EntityId;
+}
+
+export interface RuleEngineStatsFilter {
+
 }
 
 export interface EntityListFilter {
@@ -93,11 +90,6 @@ export interface AssetTypeFilter {
 export interface DeviceTypeFilter {
   deviceType?: string;
   deviceNameFilter?: string;
-}
-
-export interface EdgeTypeFilter {
-  edgeType?: string;
-  edgeNameFilter?: string;
 }
 
 export interface EntityViewFilter {
@@ -140,10 +132,6 @@ export interface DeviceSearchQueryFilter extends EntitySearchQueryFilter {
   deviceTypes?: string[];
 }
 
-export interface EdgeSearchQueryFilter extends EntitySearchQueryFilter {
-  edgeTypes?: string[];
-}
-
 export interface EntityViewSearchQueryFilter extends EntitySearchQueryFilter {
   entityViewTypes?: string[];
 }
@@ -156,14 +144,13 @@ export type EntityFilters =
   StateEntityFilter &
   AssetTypeFilter &
   DeviceTypeFilter &
-  EdgeTypeFilter &
   EntityViewFilter &
   RelationsQueryFilter &
   AssetSearchQueryFilter &
   DeviceSearchQueryFilter &
   EntityViewSearchQueryFilter &
   EntitySearchQueryFilter &
-  EdgeSearchQueryFilter;
+  RuleEngineStatsFilter;
 
 export interface EntityAliasFilter extends EntityFilters {
   type?: AliasFilterType;

@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ import org.thingsboard.server.service.install.TsDatabaseSchemaService;
 import org.thingsboard.server.service.install.TsLatestDatabaseSchemaService;
 import org.thingsboard.server.service.install.migrate.EntitiesMigrateService;
 import org.thingsboard.server.service.install.migrate.TsLatestMigrateService;
-import org.thingsboard.server.service.install.update.CacheCleanupService;
 import org.thingsboard.server.service.install.update.DataUpdateService;
 
 @Service
@@ -75,9 +74,6 @@ public class ThingsboardInstallService {
     @Autowired
     private DataUpdateService dataUpdateService;
 
-    @Autowired
-    private CacheCleanupService cacheCleanupService;
-
     @Autowired(required = false)
     private EntitiesMigrateService entitiesMigrateService;
 
@@ -88,8 +84,6 @@ public class ThingsboardInstallService {
         try {
             if (isUpgrade) {
                 log.info("Starting ThingsBoard Upgrade from version {} ...", upgradeFromVersion);
-
-                cacheCleanupService.clearCache(upgradeFromVersion);
 
                 if ("2.5.0-cassandra".equals(upgradeFromVersion)) {
                     log.info("Migrating ThingsBoard entities data from cassandra to SQL database ...");
@@ -197,31 +191,9 @@ public class ThingsboardInstallService {
                                 databaseTsUpgradeService.upgradeDatabase("3.2.1");
                             }
                             databaseEntitiesUpgradeService.upgradeDatabase("3.2.1");
-                        case "3.2.2":
-                            log.info("Upgrading ThingsBoard from version 3.2.2 to 3.3.0 ...");
-                            if (databaseTsUpgradeService != null) {
-                                databaseTsUpgradeService.upgradeDatabase("3.2.2");
-                            }
-                            databaseEntitiesUpgradeService.upgradeDatabase("3.2.2");
-
-                            dataUpdateService.updateData("3.2.2");
-                            systemDataLoaderService.createOAuth2Templates();
-                        case "3.3.0":
-                            log.info("Upgrading ThingsBoard from version 3.3.0 to 3.3.1 ...");
-                        case "3.3.1":
-                            log.info("Upgrading ThingsBoard from version 3.3.1 to 3.3.2 ...");
-                        case "3.3.2":
-                            log.info("Upgrading ThingsBoard from version 3.3.2 to 3.3.3 ...");
-                            databaseEntitiesUpgradeService.upgradeDatabase("3.3.2");
-                            dataUpdateService.updateData("3.3.2");
-                        case "3.3.3":
-                            log.info("Upgrading ThingsBoard from version 3.3.3 to 3.3.4 ...");
                             log.info("Updating system data...");
                             systemDataLoaderService.updateSystemWidgets();
                             break;
-
-                        //TODO update CacheCleanupService on the next version upgrade
-
                         default:
                             throw new RuntimeException("Unable to upgrade ThingsBoard, unsupported fromVersion: " + upgradeFromVersion);
 
@@ -254,6 +226,7 @@ public class ThingsboardInstallService {
                 systemDataLoaderService.createAdminSettings();
                 systemDataLoaderService.loadSystemWidgets();
                 systemDataLoaderService.createOAuth2Templates();
+                systemDataLoaderService.createQueues();
 //                systemDataLoaderService.loadSystemPlugins();
 //                systemDataLoaderService.loadSystemRules();
 

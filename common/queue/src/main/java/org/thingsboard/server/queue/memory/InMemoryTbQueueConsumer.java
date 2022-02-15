@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,16 +67,7 @@ public class InMemoryTbQueueConsumer<T extends TbQueueMsg> implements TbQueueCon
             @SuppressWarnings("unchecked")
             List<T> messages = partitions
                     .stream()
-                    .map(tpi -> {
-                        try {
-                            return storage.get(tpi.getFullTopicName());
-                        } catch (InterruptedException e) {
-                            if (!stopped) {
-                                log.error("Queue was interrupted.", e);
-                            }
-                            return Collections.emptyList();
-                        }
-                    })
+                    .map(tpi -> storage.get(tpi.getFullTopicName()))
                     .flatMap(List::stream)
                     .map(msg -> (T) msg).collect(Collectors.toList());
             if (messages.size() > 0) {
@@ -96,10 +87,4 @@ public class InMemoryTbQueueConsumer<T extends TbQueueMsg> implements TbQueueCon
     @Override
     public void commit() {
     }
-
-    @Override
-    public boolean isStopped() {
-        return stopped;
-    }
-
 }

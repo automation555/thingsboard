@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,12 @@ import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.msg.queue.ServiceType;
 import org.thingsboard.server.common.msg.queue.TopicPartitionInfo;
-import org.thingsboard.server.gen.transport.TransportProtos;
-import org.thingsboard.server.queue.discovery.event.PartitionChangeEvent;
+import org.thingsboard.server.gen.transport.TransportProtos.QueueDeleteMsg;
+import org.thingsboard.server.gen.transport.TransportProtos.QueueUpdateMsg;
+import org.thingsboard.server.gen.transport.TransportProtos.ServiceInfo;
 
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 
 /**
  * Once application is ready or cluster topology changes, this Service will produce {@link PartitionChangeEvent}
@@ -40,25 +40,18 @@ public interface PartitionService {
      * @param currentService - current service information {@link org.thingsboard.server.gen.transport.TransportProtos.ServiceInfo}
      * @param otherServices - all other discovered services {@link org.thingsboard.server.gen.transport.TransportProtos.ServiceInfo}
      */
-    void recalculatePartitions(TransportProtos.ServiceInfo currentService, List<TransportProtos.ServiceInfo> otherServices);
+    void recalculatePartitions(ServiceInfo currentService, List<ServiceInfo> otherServices);
 
     /**
      * Get all active service ids by service type
      * @param serviceType to filter the list of services
      * @return list of all active services
      */
-    Set<String> getAllServiceIds(ServiceType serviceType);
+    Set<ServiceInfo> getAllServices(ServiceType serviceType);
 
-    /**
-     * Each Service should start a consumer for messages that target individual service instance based on serviceId.
-     * This topic is likely to have single partition, and is always assigned to the service.
-     * @param serviceType
-     * @param serviceId
-     * @return
-     */
-    TopicPartitionInfo getNotificationsTopic(ServiceType serviceType, String serviceId);
+    Set<ServiceInfo> getOtherServices(ServiceType serviceType);
 
-    int resolvePartitionIndex(UUID entityId, int partitions);
+    void addNewQueue(QueueUpdateMsg queueUpdateMsg);
 
-    int countTransportsByType(String type);
+    void removeQueue(QueueDeleteMsg queueDeleteMsg);
 }

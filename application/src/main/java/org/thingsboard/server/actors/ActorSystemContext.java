@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,6 @@ import org.thingsboard.rule.engine.api.SmsService;
 import org.thingsboard.rule.engine.api.sms.SmsSenderFactory;
 import org.thingsboard.server.actors.service.ActorService;
 import org.thingsboard.server.actors.tenant.DebugTbRateLimits;
-import org.thingsboard.server.cluster.TbClusterService;
 import org.thingsboard.server.common.data.DataConstants;
 import org.thingsboard.server.common.data.Event;
 import org.thingsboard.server.common.data.id.EntityId;
@@ -47,7 +46,6 @@ import org.thingsboard.server.common.msg.TbMsg;
 import org.thingsboard.server.common.msg.queue.ServiceType;
 import org.thingsboard.server.common.msg.queue.TopicPartitionInfo;
 import org.thingsboard.server.common.msg.tools.TbRateLimits;
-import org.thingsboard.server.common.transport.util.DataDecodingEncodingService;
 import org.thingsboard.server.dao.asset.AssetService;
 import org.thingsboard.server.dao.attributes.AttributesService;
 import org.thingsboard.server.dao.audit.AuditLogService;
@@ -56,18 +54,13 @@ import org.thingsboard.server.dao.customer.CustomerService;
 import org.thingsboard.server.dao.dashboard.DashboardService;
 import org.thingsboard.server.dao.device.ClaimDevicesService;
 import org.thingsboard.server.dao.device.DeviceService;
-import org.thingsboard.server.dao.edge.EdgeEventService;
-import org.thingsboard.server.dao.edge.EdgeService;
 import org.thingsboard.server.dao.entityview.EntityViewService;
 import org.thingsboard.server.dao.event.EventService;
-import org.thingsboard.server.dao.nosql.CassandraBufferedRateReadExecutor;
-import org.thingsboard.server.dao.nosql.CassandraBufferedRateWriteExecutor;
-import org.thingsboard.server.dao.ota.OtaPackageService;
+import org.thingsboard.server.dao.nosql.CassandraBufferedRateExecutor;
+import org.thingsboard.server.dao.queue.QueueStatsService;
 import org.thingsboard.server.dao.relation.RelationService;
-import org.thingsboard.server.dao.resource.ResourceService;
 import org.thingsboard.server.dao.rule.RuleChainService;
 import org.thingsboard.server.dao.rule.RuleNodeStateService;
-import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
 import org.thingsboard.server.dao.tenant.TenantProfileService;
 import org.thingsboard.server.dao.tenant.TenantService;
 import org.thingsboard.server.dao.timeseries.TimeseriesService;
@@ -77,15 +70,17 @@ import org.thingsboard.server.queue.discovery.TbServiceInfoProvider;
 import org.thingsboard.server.queue.usagestats.TbApiUsageClient;
 import org.thingsboard.server.service.apiusage.TbApiUsageStateService;
 import org.thingsboard.server.service.component.ComponentDiscoveryService;
-import org.thingsboard.server.service.edge.rpc.EdgeRpcService;
+import org.thingsboard.server.common.transport.util.DataDecodingEncodingService;
 import org.thingsboard.server.service.executors.DbCallbackExecutorService;
 import org.thingsboard.server.service.executors.ExternalCallExecutorService;
 import org.thingsboard.server.service.executors.SharedEventLoopGroupService;
 import org.thingsboard.server.service.mail.MailExecutorService;
 import org.thingsboard.server.service.profile.TbDeviceProfileCache;
+import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
+import org.thingsboard.server.service.queue.TbClusterService;
 import org.thingsboard.server.service.rpc.TbCoreDeviceRpcService;
-import org.thingsboard.server.service.rpc.TbRpcService;
 import org.thingsboard.server.service.rpc.TbRuleEngineDeviceRpcService;
+import org.thingsboard.server.service.script.JsExecutorService;
 import org.thingsboard.server.service.script.JsInvokeService;
 import org.thingsboard.server.service.session.DeviceSessionCacheService;
 import org.thingsboard.server.service.sms.SmsExecutorService;
@@ -95,7 +90,6 @@ import org.thingsboard.server.service.telemetry.TelemetrySubscriptionService;
 import org.thingsboard.server.service.transport.TbCoreToTransportService;
 
 import javax.annotation.Nullable;
-import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -232,6 +226,10 @@ public class ActorSystemContext {
 
     @Autowired
     @Getter
+    private JsExecutorService jsExecutor;
+
+    @Autowired
+    @Getter
     private MailExecutorService mailExecutor;
 
     @Autowired
@@ -262,8 +260,7 @@ public class ActorSystemContext {
     @Getter
     private SmsSenderFactory smsSenderFactory;
 
-    @Lazy
-    @Autowired(required = false)
+    @Autowired
     @Getter
     private ClaimDevicesService claimDevicesService;
 
@@ -284,6 +281,10 @@ public class ActorSystemContext {
     @Getter
     private TbCoreToTransportService tbCoreToTransportService;
 
+    @Autowired
+    @Getter
+    private QueueStatsService queueStatsService;
+
     /**
      * The following Service will be null if we operate in tb-core mode
      */
@@ -300,75 +301,30 @@ public class ActorSystemContext {
     @Getter
     private TbCoreDeviceRpcService tbCoreDeviceRpcService;
 
-    @Lazy
-    @Autowired(required = false)
-    @Getter
-    private EdgeService edgeService;
-
-    @Lazy
-    @Autowired(required = false)
-    @Getter
-    private EdgeEventService edgeEventService;
-
-    @Lazy
-    @Autowired(required = false)
-    @Getter
-    private EdgeRpcService edgeRpcService;
-
-    @Lazy
-    @Autowired(required = false)
-    @Getter
-    private ResourceService resourceService;
-
-    @Lazy
-    @Autowired(required = false)
-    @Getter
-    private OtaPackageService otaPackageService;
-
-    @Lazy
-    @Autowired(required = false)
-    @Getter
-    private TbRpcService tbRpcService;
-
     @Value("${actors.session.max_concurrent_sessions_per_device:1}")
     @Getter
     private long maxConcurrentSessionsPerDevice;
 
-    @Value("${actors.session.sync.timeout:10000}")
+    @Value("${actors.session.sync.timeout}")
     @Getter
     private long syncSessionTimeout;
 
-    @Value("${actors.rule.chain.error_persist_frequency:3000}")
+    @Value("${actors.rule.chain.error_persist_frequency}")
     @Getter
     private long ruleChainErrorPersistFrequency;
 
-    @Value("${actors.rule.node.error_persist_frequency:3000}")
+    @Value("${actors.rule.node.error_persist_frequency}")
     @Getter
     private long ruleNodeErrorPersistFrequency;
 
-    @Value("${actors.statistics.enabled:true}")
+    @Value("${actors.statistics.enabled}")
     @Getter
     private boolean statisticsEnabled;
 
-    @Value("${actors.statistics.persist_frequency:3600000}")
+    @Value("${actors.statistics.persist_frequency}")
     @Getter
     private long statisticsPersistFrequency;
 
-    @Value("${edges.enabled:true}")
-    @Getter
-    private boolean edgesEnabled;
-
-    @Value("${cache.type:caffeine}")
-    @Getter
-    private String cacheType;
-
-    @Getter
-    private boolean localCacheType;
-
-    @PostConstruct
-    public void init() {
-        this.localCacheType = "caffeine".equals(cacheType);
-    }
 
     @Scheduled(fixedDelayString = "${actors.statistics.js_print_interval_ms}")
     public void printStats() {
@@ -381,41 +337,33 @@ public class ActorSystemContext {
         }
     }
 
-    @Value("${actors.tenant.create_components_on_init:true}")
+    @Value("${actors.tenant.create_components_on_init}")
     @Getter
     private boolean tenantComponentsInitEnabled;
 
-    @Value("${actors.rule.allow_system_mail_service:true}")
+    @Value("${actors.rule.allow_system_mail_service}")
     @Getter
     private boolean allowSystemMailService;
 
-    @Value("${actors.rule.allow_system_sms_service:true}")
+    @Value("${actors.rule.allow_system_sms_service}")
     @Getter
     private boolean allowSystemSmsService;
 
-    @Value("${transport.sessions.inactivity_timeout:300000}")
+    @Value("${transport.sessions.inactivity_timeout}")
     @Getter
     private long sessionInactivityTimeout;
 
-    @Value("${transport.sessions.report_timeout:3000}")
+    @Value("${transport.sessions.report_timeout}")
     @Getter
     private long sessionReportTimeout;
 
-    @Value("${actors.rule.chain.debug_mode_rate_limits_per_tenant.enabled:true}")
+    @Value("${actors.rule.chain.debug_mode_rate_limits_per_tenant.enabled}")
     @Getter
     private boolean debugPerTenantEnabled;
 
-    @Value("${actors.rule.chain.debug_mode_rate_limits_per_tenant.configuration:50000:3600}")
+    @Value("${actors.rule.chain.debug_mode_rate_limits_per_tenant.configuration}")
     @Getter
     private String debugPerTenantLimitsConfiguration;
-
-    @Value("${actors.rpc.sequential:false}")
-    @Getter
-    private boolean rpcSequential;
-
-    @Value("${actors.rpc.max_retries:5}")
-    @Getter
-    private int maxRpcRetries;
 
     @Getter
     @Setter
@@ -434,11 +382,7 @@ public class ActorSystemContext {
 
     @Autowired(required = false)
     @Getter
-    private CassandraBufferedRateReadExecutor cassandraBufferedRateReadExecutor;
-
-    @Autowired(required = false)
-    @Getter
-    private CassandraBufferedRateWriteExecutor cassandraBufferedRateWriteExecutor;
+    private CassandraBufferedRateExecutor cassandraBufferedRateExecutor;
 
     @Autowired(required = false)
     @Getter
@@ -499,31 +443,28 @@ public class ActorSystemContext {
         return partitionService.resolve(serviceType, queueName, tenantId, entityId);
     }
 
+
     public String getServiceId() {
         return serviceInfoProvider.getServiceId();
     }
 
     public void persistDebugInput(TenantId tenantId, EntityId entityId, TbMsg tbMsg, String relationType) {
-        persistDebugAsync(tenantId, entityId, "IN", tbMsg, relationType, null, null);
+        persistDebugAsync(tenantId, entityId, "IN", tbMsg, relationType, null);
     }
 
     public void persistDebugInput(TenantId tenantId, EntityId entityId, TbMsg tbMsg, String relationType, Throwable error) {
-        persistDebugAsync(tenantId, entityId, "IN", tbMsg, relationType, error, null);
-    }
-
-    public void persistDebugOutput(TenantId tenantId, EntityId entityId, TbMsg tbMsg, String relationType, Throwable error, String failureMessage) {
-        persistDebugAsync(tenantId, entityId, "OUT", tbMsg, relationType, error, failureMessage);
+        persistDebugAsync(tenantId, entityId, "IN", tbMsg, relationType, error);
     }
 
     public void persistDebugOutput(TenantId tenantId, EntityId entityId, TbMsg tbMsg, String relationType, Throwable error) {
-        persistDebugAsync(tenantId, entityId, "OUT", tbMsg, relationType, error, null);
+        persistDebugAsync(tenantId, entityId, "OUT", tbMsg, relationType, error);
     }
 
     public void persistDebugOutput(TenantId tenantId, EntityId entityId, TbMsg tbMsg, String relationType) {
-        persistDebugAsync(tenantId, entityId, "OUT", tbMsg, relationType, null, null);
+        persistDebugAsync(tenantId, entityId, "OUT", tbMsg, relationType, null);
     }
 
-    private void persistDebugAsync(TenantId tenantId, EntityId entityId, String type, TbMsg tbMsg, String relationType, Throwable error, String failureMessage) {
+    private void persistDebugAsync(TenantId tenantId, EntityId entityId, String type, TbMsg tbMsg, String relationType, Throwable error) {
         if (checkLimits(tenantId, tbMsg, error)) {
             try {
                 Event event = new Event();
@@ -547,8 +488,6 @@ public class ActorSystemContext {
 
                 if (error != null) {
                     node = node.put("error", toString(error));
-                } else if (failureMessage != null) {
-                    node = node.put("error", failureMessage);
                 }
 
                 event.setBody(node);

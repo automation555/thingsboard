@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,10 +37,8 @@ public enum Resource {
     TENANT_PROFILE(EntityType.TENANT_PROFILE),
     DEVICE_PROFILE(EntityType.DEVICE_PROFILE),
     API_USAGE_STATE(EntityType.API_USAGE_STATE),
-    TB_RESOURCE(EntityType.TB_RESOURCE),
-    OTA_PACKAGE(EntityType.OTA_PACKAGE),
-    EDGE(EntityType.EDGE),
-    RPC(EntityType.RPC);
+    QUEUE(EntityType.QUEUE),
+    QUEUE_STATS(EntityType.QUEUE_STATS);
 
     private final EntityType entityType;
 
@@ -58,7 +56,7 @@ public enum Resource {
 
     public static Resource of(EntityType entityType) {
         for (Resource resource : Resource.values()) {
-            if (resource.getEntityType().orElse(null) == entityType) {
+            if (resource.getEntityType().get() == entityType) {
                 return resource;
             }
         }

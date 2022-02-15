@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2022 The Thingsboard Authors
+/// Copyright © 2016-2021 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -34,17 +34,16 @@ import { PageComponent } from '@shared/components/page.component';
 import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
 import { EntityTableConfig } from '@home/models/entity/entities-table-config.models';
-import { BaseData, HasId, hasIdEquals } from '@shared/models/base-data';
+import { BaseData, HasId } from '@shared/models/base-data';
 import { EntityType, EntityTypeResource, EntityTypeTranslation } from '@shared/models/entity-type.models';
 import { FormGroup } from '@angular/forms';
 import { EntityComponent } from './entity.component';
 import { TbAnchorComponent } from '@shared/components/tb-anchor.component';
 import { EntityAction } from '@home/models/entity/entity-component.models';
-import { Observable, ReplaySubject, Subscription } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { MatTab, MatTabGroup } from '@angular/material/tabs';
 import { EntityTabsComponent } from '@home/components/entity/entity-tabs.component';
 import { deepClone, mergeDeep } from '@core/utils';
-import { entityIdEquals } from '@shared/models/id/entity-id';
 
 @Component({
   selector: 'tb-entity-details-panel',
@@ -89,25 +88,23 @@ export class EntityDetailsPanelComponent extends PageComponent implements AfterV
   entity: BaseData<HasId>;
   editingEntity: BaseData<HasId>;
 
-  protected currentEntityId: HasId;
-  protected subscriptions: Subscription[] = [];
-  protected viewInited = false;
-  protected pendingTabs: MatTab[];
+  private currentEntityId: HasId;
+  private subscriptions: Subscription[] = [];
+  private viewInited = false;
+  private pendingTabs: MatTab[];
 
   constructor(protected store: Store<AppState>,
-              protected injector: Injector,
-              protected cd: ChangeDetectorRef,
-              protected componentFactoryResolver: ComponentFactoryResolver) {
+              private injector: Injector,
+              private cd: ChangeDetectorRef,
+              private componentFactoryResolver: ComponentFactoryResolver) {
     super(store);
   }
 
   @Input()
   set entityId(entityId: HasId) {
-    if (!hasIdEquals(entityId, this.currentEntityId)) {
+    if (entityId && entityId !== this.currentEntityId) {
       this.currentEntityId = entityId;
-      if (this.currentEntityId) {
-        this.reloadEntity();
-      }
+      this.reload();
     }
   }
 
@@ -142,7 +139,7 @@ export class EntityDetailsPanelComponent extends PageComponent implements AfterV
     return this.isEditValue;
   }
 
-  protected init() {
+  private init() {
     this.translations = this.entitiesTableConfig.entityTranslations;
     this.resources = this.entitiesTableConfig.entityResources;
     this.buildEntityComponent();
@@ -231,8 +228,7 @@ export class EntityDetailsPanelComponent extends PageComponent implements AfterV
     return this.isEditValue && this.entitiesTableConfig.hideDetailsTabsOnEdit;
   }
 
-  reloadEntity(): Observable<BaseData<HasId>> {
-    const loadEntitySubject = new ReplaySubject<BaseData<HasId>>();
+  reload(): void {
     this.isEdit = false;
     this.entitiesTableConfig.loadEntity(this.currentEntityId).subscribe(
       (entity) => {
@@ -241,11 +237,8 @@ export class EntityDetailsPanelComponent extends PageComponent implements AfterV
         if (this.entityTabsComponent) {
           this.entityTabsComponent.entity = entity;
         }
-        loadEntitySubject.next(entity);
-        loadEntitySubject.complete();
       }
     );
-    return loadEntitySubject;
   }
 
   onCloseEntityDetails() {
@@ -273,22 +266,23 @@ export class EntityDetailsPanelComponent extends PageComponent implements AfterV
   }
 
   helpLinkId(): string {
-    if (this.resources.helpLinkIdForEntity && this.entityComponent.entityForm) {
-      return this.resources.helpLinkIdForEntity(this.entityComponent.entityForm.getRawValue());
-    } else {
-      return this.resources.helpLinkId;
+    if (this.resources) {
+      if (this.resources.helpLinkIdForEntity && this.entityComponent.entityForm) {
+        return this.resources.helpLinkIdForEntity(this.entityComponent.entityForm.getRawValue());
+      } else {
+        return this.resources.helpLinkId;
+      }
     }
   }
 
-  saveEntity(emitEntityUpdated = true): Observable<BaseData<HasId>> {
-    const saveEntitySubject = new ReplaySubject<BaseData<HasId>>();
+  saveEntity() {
     if (this.detailsForm.valid) {
       const editingEntity = {...this.editingEntity, ...this.entityComponent.entityFormValue()};
       if (this.editingEntity.hasOwnProperty('additionalInfo')) {
         editingEntity.additionalInfo =
           mergeDeep((this.editingEntity as any).additionalInfo, this.entityComponent.entityFormValue()?.additionalInfo);
       }
-      this.entitiesTableConfig.saveEntity(editingEntity, this.editingEntity).subscribe(
+      this.entitiesTableConfig.saveEntity(editingEntity).subscribe(
         (entity) => {
           this.entity = entity;
           this.entityComponent.entity = entity;
@@ -296,18 +290,10 @@ export class EntityDetailsPanelComponent extends PageComponent implements AfterV
             this.entityTabsComponent.entity = entity;
           }
           this.isEdit = false;
-          if (emitEntityUpdated) {
-            this.entityUpdated.emit(this.entity);
-          }
-          saveEntitySubject.next(entity);
-          saveEntitySubject.complete();
+          this.entityUpdated.emit(this.entity);
         }
       );
-    } else {
-      saveEntitySubject.next(null);
-      saveEntitySubject.complete();
     }
-    return saveEntitySubject;
   }
 
   ngAfterViewInit(): void {

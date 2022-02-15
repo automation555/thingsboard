@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,18 +17,12 @@ package org.thingsboard.server.service.install;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.thingsboard.common.util.ThingsBoardThreadFactory;
 import org.thingsboard.server.common.data.AdminSettings;
 import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.DataConstants;
@@ -57,7 +51,6 @@ import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.id.DeviceProfileId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.kv.BaseAttributeKvEntry;
-import org.thingsboard.server.common.data.kv.BasicTsKvEntry;
 import org.thingsboard.server.common.data.kv.BooleanDataEntry;
 import org.thingsboard.server.common.data.kv.DoubleDataEntry;
 import org.thingsboard.server.common.data.kv.LongDataEntry;
@@ -68,7 +61,11 @@ import org.thingsboard.server.common.data.query.DynamicValueSourceType;
 import org.thingsboard.server.common.data.query.EntityKeyValueType;
 import org.thingsboard.server.common.data.query.FilterPredicateValue;
 import org.thingsboard.server.common.data.query.NumericFilterPredicate;
-import org.thingsboard.server.common.data.rule.RuleChainType;
+import org.thingsboard.server.common.data.queue.ProcessingStrategy;
+import org.thingsboard.server.common.data.queue.ProcessingStrategyType;
+import org.thingsboard.server.common.data.queue.Queue;
+import org.thingsboard.server.common.data.queue.SubmitStrategy;
+import org.thingsboard.server.common.data.queue.SubmitStrategyType;
 import org.thingsboard.server.common.data.security.Authority;
 import org.thingsboard.server.common.data.security.DeviceCredentials;
 import org.thingsboard.server.common.data.security.UserCredentials;
@@ -81,23 +78,17 @@ import org.thingsboard.server.dao.device.DeviceCredentialsService;
 import org.thingsboard.server.dao.device.DeviceProfileService;
 import org.thingsboard.server.dao.device.DeviceService;
 import org.thingsboard.server.dao.exception.DataValidationException;
+import org.thingsboard.server.dao.queue.QueueService;
 import org.thingsboard.server.dao.rule.RuleChainService;
 import org.thingsboard.server.dao.settings.AdminSettingsService;
 import org.thingsboard.server.dao.tenant.TenantProfileService;
 import org.thingsboard.server.dao.tenant.TenantService;
-import org.thingsboard.server.dao.timeseries.TimeseriesService;
 import org.thingsboard.server.dao.user.UserService;
 import org.thingsboard.server.dao.widget.WidgetsBundleService;
 
-import javax.annotation.Nullable;
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.TreeMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 @Service
 @Profile("install")
@@ -107,7 +98,6 @@ public class DefaultSystemDataLoaderService implements SystemDataLoaderService {
     private static final ObjectMapper objectMapper = new ObjectMapper();
     public static final String CUSTOMER_CRED = "customer";
     public static final String DEFAULT_DEVICE_TYPE = "default";
-    public static final String ACTIVITY_STATE = "active";
 
     @Autowired
     private InstallScripts installScripts;
@@ -149,29 +139,11 @@ public class DefaultSystemDataLoaderService implements SystemDataLoaderService {
     private RuleChainService ruleChainService;
 
     @Autowired
-    private TimeseriesService tsService;
-
-    @Value("${state.persistToTelemetry:false}")
-    @Getter
-    private boolean persistActivityToTelemetry;
+    private QueueService queueService;
 
     @Bean
     protected BCryptPasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
-    }
-
-    private ExecutorService tsCallBackExecutor;
-
-    @PostConstruct
-    public void initExecutor() {
-        tsCallBackExecutor = Executors.newSingleThreadExecutor(ThingsBoardThreadFactory.forName("sys-loader-ts-callback"));
-    }
-
-    @PreDestroy
-    public void shutdownExecutor() {
-        if (tsCallBackExecutor != null) {
-            tsCallBackExecutor.shutdownNow();
-        }
     }
 
     @Override
@@ -199,13 +171,19 @@ public class DefaultSystemDataLoaderService implements SystemDataLoaderService {
             log.warn(e.getMessage());
         }
 
+        TenantProfileData isolatedTenantProfileData = new TenantProfileData();
+        DefaultTenantProfileConfiguration profileConfiguration = new DefaultTenantProfileConfiguration();
+        profileConfiguration.setMaxNumberOfQueues(10);
+        profileConfiguration.setMaxNumberOfPartitionsPerQueue(10);
+        isolatedTenantProfileData.setConfiguration(profileConfiguration);
+
         TenantProfile isolatedTbRuleEngineProfile = new TenantProfile();
         isolatedTbRuleEngineProfile.setDefault(false);
         isolatedTbRuleEngineProfile.setName("Isolated TB Rule Engine");
         isolatedTbRuleEngineProfile.setDescription("Isolated TB Rule Engine tenant profile");
         isolatedTbRuleEngineProfile.setIsolatedTbCore(false);
         isolatedTbRuleEngineProfile.setIsolatedTbRuleEngine(true);
-        isolatedTbRuleEngineProfile.setProfileData(tenantProfileData);
+        isolatedTbRuleEngineProfile.setProfileData(isolatedTenantProfileData);
 
         try {
             tenantProfileService.saveTenantProfile(TenantId.SYS_TENANT_ID, isolatedTbRuleEngineProfile);
@@ -219,7 +197,7 @@ public class DefaultSystemDataLoaderService implements SystemDataLoaderService {
         isolatedTbCoreAndTbRuleEngineProfile.setDescription("Isolated TB Core and TB Rule Engine tenant profile");
         isolatedTbCoreAndTbRuleEngineProfile.setIsolatedTbCore(true);
         isolatedTbCoreAndTbRuleEngineProfile.setIsolatedTbRuleEngine(true);
-        isolatedTbCoreAndTbRuleEngineProfile.setProfileData(tenantProfileData);
+        isolatedTbCoreAndTbRuleEngineProfile.setProfileData(isolatedTenantProfileData);
 
         try {
             tenantProfileService.saveTenantProfile(TenantId.SYS_TENANT_ID, isolatedTbCoreAndTbRuleEngineProfile);
@@ -251,7 +229,6 @@ public class DefaultSystemDataLoaderService implements SystemDataLoaderService {
         node.put("password", "");
         node.put("tlsVersion", "TLSv1.2");//NOSONAR, key used to identify password field (not password value itself)
         node.put("enableProxy", false);
-        node.put("showChangePassword", false);
         mailSettings.setJsonValue(node);
         adminSettingsService.saveAdminSettings(TenantId.SYS_TENANT_ID, mailSettings);
     }
@@ -309,8 +286,8 @@ public class DefaultSystemDataLoaderService implements SystemDataLoaderService {
         thermostatDeviceProfile.setTransportType(DeviceTransportType.DEFAULT);
         thermostatDeviceProfile.setProvisionType(DeviceProfileProvisionType.DISABLED);
         thermostatDeviceProfile.setDescription("Thermostat device profile");
-        thermostatDeviceProfile.setDefaultRuleChainId(ruleChainService.findTenantRuleChainsByType(
-                demoTenant.getId(), RuleChainType.CORE, new PageLink(1, 0, "Thermostat")).getData().get(0).getId());
+        thermostatDeviceProfile.setDefaultRuleChainId(ruleChainService.findTenantRuleChains(
+                demoTenant.getId(), new PageLink(1, 0, "Thermostat")).getData().get(0).getId());
 
         DeviceProfileData deviceProfileData = new DeviceProfileData();
         DefaultDeviceProfileConfiguration configuration = new DefaultDeviceProfileConfiguration();
@@ -477,7 +454,6 @@ public class DefaultSystemDataLoaderService implements SystemDataLoaderService {
         this.deleteSystemWidgetBundle("date");
         this.deleteSystemWidgetBundle("entity_admin_widgets");
         this.deleteSystemWidgetBundle("navigation_widgets");
-        this.deleteSystemWidgetBundle("edge_widgets");
         installScripts.loadSystemWidgets();
     }
 
@@ -517,62 +493,72 @@ public class DefaultSystemDataLoaderService implements SystemDataLoaderService {
             device.setAdditionalInfo(additionalInfo);
         }
         device = deviceService.saveDevice(device);
-        save(device.getId(), ACTIVITY_STATE, false);
         DeviceCredentials deviceCredentials = deviceCredentialsService.findDeviceCredentialsByDeviceId(TenantId.SYS_TENANT_ID, device.getId());
         deviceCredentials.setCredentialsId(accessToken);
         deviceCredentialsService.updateDeviceCredentials(TenantId.SYS_TENANT_ID, deviceCredentials);
         return device;
     }
 
-    private void save(DeviceId deviceId, String key, boolean value) {
-        if (persistActivityToTelemetry) {
-            ListenableFuture<Integer> saveFuture = tsService.save(
-                    TenantId.SYS_TENANT_ID,
-                    deviceId,
-                    Collections.singletonList(new BasicTsKvEntry(System.currentTimeMillis(), new BooleanDataEntry(key, value))), 0L);
-            addTsCallback(saveFuture, new TelemetrySaveCallback<>(deviceId, key, value));
-        } else {
-            ListenableFuture<List<Void>> saveFuture = attributesService.save(TenantId.SYS_TENANT_ID, deviceId, DataConstants.SERVER_SCOPE,
-                    Collections.singletonList(new BaseAttributeKvEntry(new BooleanDataEntry(key, value)
-                    , System.currentTimeMillis())));
-            addTsCallback(saveFuture, new TelemetrySaveCallback<>(deviceId, key, value));
-        }
+    @Override
+    public void createQueues() {
+        Queue mainQueue = new Queue();
+        mainQueue.setTenantId(TenantId.SYS_TENANT_ID);
+        mainQueue.setName("Main");
+        mainQueue.setTopic("tb_rule_engine.main");
+        mainQueue.setPollInterval(25);
+        mainQueue.setPartitions(10);
+        mainQueue.setPackProcessingTimeout(2000);
+        SubmitStrategy mainQueueSubmitStrategy = new SubmitStrategy();
+        mainQueueSubmitStrategy.setType(SubmitStrategyType.BURST);
+        mainQueueSubmitStrategy.setBatchSize(1000);
+        mainQueue.setSubmitStrategy(mainQueueSubmitStrategy);
+        ProcessingStrategy mainQueueProcessingStrategy = new ProcessingStrategy();
+        mainQueueProcessingStrategy.setType(ProcessingStrategyType.SKIP_ALL_FAILURES);
+        mainQueueProcessingStrategy.setRetries(3);
+        mainQueueProcessingStrategy.setFailurePercentage(0);
+        mainQueueProcessingStrategy.setPauseBetweenRetries(3);
+        mainQueueProcessingStrategy.setMaxPauseBetweenRetries(3);
+        mainQueue.setProcessingStrategy(mainQueueProcessingStrategy);
+        queueService.saveQueue(mainQueue);
+
+        Queue highPriorityQueue = new Queue();
+        highPriorityQueue.setTenantId(TenantId.SYS_TENANT_ID);
+        highPriorityQueue.setName("HighPriority");
+        highPriorityQueue.setTopic("tb_rule_engine.hp");
+        highPriorityQueue.setPollInterval(25);
+        highPriorityQueue.setPartitions(10);
+        highPriorityQueue.setPackProcessingTimeout(2000);
+        SubmitStrategy highPriorityQueueSubmitStrategy = new SubmitStrategy();
+        highPriorityQueueSubmitStrategy.setType(SubmitStrategyType.BURST);
+        highPriorityQueueSubmitStrategy.setBatchSize(100);
+        highPriorityQueue.setSubmitStrategy(highPriorityQueueSubmitStrategy);
+        ProcessingStrategy highPriorityQueueProcessingStrategy = new ProcessingStrategy();
+        highPriorityQueueProcessingStrategy.setType(ProcessingStrategyType.RETRY_FAILED_AND_TIMED_OUT);
+        highPriorityQueueProcessingStrategy.setRetries(0);
+        highPriorityQueueProcessingStrategy.setFailurePercentage(0);
+        highPriorityQueueProcessingStrategy.setPauseBetweenRetries(5);
+        highPriorityQueueProcessingStrategy.setMaxPauseBetweenRetries(5);
+        highPriorityQueue.setProcessingStrategy(highPriorityQueueProcessingStrategy);
+        queueService.saveQueue(highPriorityQueue);
+
+        Queue sequentialByOriginatorQueue = new Queue();
+        sequentialByOriginatorQueue.setTenantId(TenantId.SYS_TENANT_ID);
+        sequentialByOriginatorQueue.setName("SequentialByOriginator");
+        sequentialByOriginatorQueue.setTopic("tb_rule_engine.sq");
+        sequentialByOriginatorQueue.setPollInterval(25);
+        sequentialByOriginatorQueue.setPartitions(10);
+        sequentialByOriginatorQueue.setPackProcessingTimeout(2000);
+        SubmitStrategy sequentialByOriginatorQueueSubmitStrategy = new SubmitStrategy();
+        sequentialByOriginatorQueueSubmitStrategy.setType(SubmitStrategyType.SEQUENTIAL_BY_ORIGINATOR);
+        sequentialByOriginatorQueueSubmitStrategy.setBatchSize(100);
+        sequentialByOriginatorQueue.setSubmitStrategy(sequentialByOriginatorQueueSubmitStrategy);
+        ProcessingStrategy sequentialByOriginatorQueueProcessingStrategy = new ProcessingStrategy();
+        sequentialByOriginatorQueueProcessingStrategy.setType(ProcessingStrategyType.RETRY_FAILED_AND_TIMED_OUT);
+        sequentialByOriginatorQueueProcessingStrategy.setRetries(3);
+        sequentialByOriginatorQueueProcessingStrategy.setFailurePercentage(0);
+        sequentialByOriginatorQueueProcessingStrategy.setPauseBetweenRetries(5);
+        sequentialByOriginatorQueueProcessingStrategy.setMaxPauseBetweenRetries(5);
+        sequentialByOriginatorQueue.setProcessingStrategy(sequentialByOriginatorQueueProcessingStrategy);
+        queueService.saveQueue(sequentialByOriginatorQueue);
     }
-
-    private static class TelemetrySaveCallback<T> implements FutureCallback<T> {
-        private final DeviceId deviceId;
-        private final String key;
-        private final Object value;
-
-        TelemetrySaveCallback(DeviceId deviceId, String key, Object value) {
-            this.deviceId = deviceId;
-            this.key = key;
-            this.value = value;
-        }
-
-        @Override
-        public void onSuccess(@Nullable T result) {
-            log.trace("[{}] Successfully updated attribute [{}] with value [{}]", deviceId, key, value);
-        }
-
-        @Override
-        public void onFailure(Throwable t) {
-            log.warn("[{}] Failed to update attribute [{}] with value [{}]", deviceId, key, value, t);
-        }
-    }
-
-    private <S> void addTsCallback(ListenableFuture<S> saveFuture, final FutureCallback<S> callback) {
-        Futures.addCallback(saveFuture, new FutureCallback<S>() {
-            @Override
-            public void onSuccess(@Nullable S result) {
-                callback.onSuccess(result);
-            }
-
-            @Override
-            public void onFailure(Throwable t) {
-                callback.onFailure(t);
-            }
-        }, tsCallBackExecutor);
-    }
-
 }
