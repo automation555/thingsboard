@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,24 +15,29 @@
  */
 package org.thingsboard.server.controller;
 
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
-import com.google.common.util.concurrent.SettableFuture;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-import lombok.extern.slf4j.Slf4j;
+import static org.apache.commons.lang3.StringUtils.isBlank;
+import static org.thingsboard.server.controller.CustomerController.CUSTOMER_ID;
+import static org.thingsboard.server.controller.EdgeController.EDGE_ID;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.thingsboard.server.common.data.Customer;
@@ -66,38 +71,13 @@ import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.permission.Operation;
 import org.thingsboard.server.service.security.permission.Resource;
 
-import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.SettableFuture;
 
-import static org.apache.commons.lang3.StringUtils.isBlank;
-import static org.thingsboard.server.controller.ControllerConstants.CUSTOMER_ID;
-import static org.thingsboard.server.controller.ControllerConstants.CUSTOMER_ID_PARAM_DESCRIPTION;
-import static org.thingsboard.server.controller.ControllerConstants.EDGE_ASSIGN_ASYNC_FIRST_STEP_DESCRIPTION;
-import static org.thingsboard.server.controller.ControllerConstants.EDGE_ASSIGN_RECEIVE_STEP_DESCRIPTION;
-import static org.thingsboard.server.controller.ControllerConstants.EDGE_UNASSIGN_ASYNC_FIRST_STEP_DESCRIPTION;
-import static org.thingsboard.server.controller.ControllerConstants.EDGE_UNASSIGN_RECEIVE_STEP_DESCRIPTION;
-import static org.thingsboard.server.controller.ControllerConstants.ENTITY_VIEW_DESCRIPTION;
-import static org.thingsboard.server.controller.ControllerConstants.ENTITY_VIEW_ID_PARAM_DESCRIPTION;
-import static org.thingsboard.server.controller.ControllerConstants.ENTITY_VIEW_INFO_DESCRIPTION;
-import static org.thingsboard.server.controller.ControllerConstants.ENTITY_VIEW_INFO_SORT_PROPERTY_ALLOWABLE_VALUES;
-import static org.thingsboard.server.controller.ControllerConstants.ENTITY_VIEW_SORT_PROPERTY_ALLOWABLE_VALUES;
-import static org.thingsboard.server.controller.ControllerConstants.ENTITY_VIEW_TEXT_SEARCH_DESCRIPTION;
-import static org.thingsboard.server.controller.ControllerConstants.ENTITY_VIEW_TYPE;
-import static org.thingsboard.server.controller.ControllerConstants.MODEL_DESCRIPTION;
-import static org.thingsboard.server.controller.ControllerConstants.PAGE_DATA_PARAMETERS;
-import static org.thingsboard.server.controller.ControllerConstants.PAGE_NUMBER_DESCRIPTION;
-import static org.thingsboard.server.controller.ControllerConstants.PAGE_SIZE_DESCRIPTION;
-import static org.thingsboard.server.controller.ControllerConstants.SORT_ORDER_ALLOWABLE_VALUES;
-import static org.thingsboard.server.controller.ControllerConstants.SORT_ORDER_DESCRIPTION;
-import static org.thingsboard.server.controller.ControllerConstants.SORT_PROPERTY_DESCRIPTION;
-import static org.thingsboard.server.controller.ControllerConstants.TENANT_AUTHORITY_PARAGRAPH;
-import static org.thingsboard.server.controller.ControllerConstants.TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH;
-import static org.thingsboard.server.controller.EdgeController.EDGE_ID;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Created by Victor Basanets on 8/28/2017.
@@ -113,16 +93,9 @@ public class EntityViewController extends BaseController {
     @Autowired
     private TimeseriesService tsService;
 
-    @ApiOperation(value = "Get entity view (getEntityViewById)",
-            notes = "Fetch the EntityView object based on the provided entity view id. "
-                    + ENTITY_VIEW_DESCRIPTION + MODEL_DESCRIPTION + TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH,
-            produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    @RequestMapping(value = "/entityView/{entityViewId}", method = RequestMethod.GET)
-    @ResponseBody
-    public EntityView getEntityViewById(
-            @ApiParam(value = ENTITY_VIEW_ID_PARAM_DESCRIPTION)
-            @PathVariable(ENTITY_VIEW_ID) String strEntityViewId) throws ThingsboardException {
+    @GetMapping(value = "/entityView/{entityViewId}")
+    public EntityView getEntityViewById(@PathVariable(ENTITY_VIEW_ID) String strEntityViewId) throws ThingsboardException {
         checkParameter(ENTITY_VIEW_ID, strEntityViewId);
         try {
             return checkEntityViewId(new EntityViewId(toUUID(strEntityViewId)), Operation.READ);
@@ -131,16 +104,9 @@ public class EntityViewController extends BaseController {
         }
     }
 
-    @ApiOperation(value = "Get Entity View info (getEntityViewInfoById)",
-            notes = "Fetch the Entity View info object based on the provided Entity View Id. "
-                    + ENTITY_VIEW_INFO_DESCRIPTION + MODEL_DESCRIPTION + TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH,
-            produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    @RequestMapping(value = "/entityView/info/{entityViewId}", method = RequestMethod.GET)
-    @ResponseBody
-    public EntityViewInfo getEntityViewInfoById(
-            @ApiParam(value = ENTITY_VIEW_ID_PARAM_DESCRIPTION)
-            @PathVariable(ENTITY_VIEW_ID) String strEntityViewId) throws ThingsboardException {
+    @GetMapping(value = "/entityView/info/{entityViewId}")
+    public EntityViewInfo getEntityViewInfoById(@PathVariable(ENTITY_VIEW_ID) String strEntityViewId) throws ThingsboardException {
         checkParameter(ENTITY_VIEW_ID, strEntityViewId);
         try {
             EntityViewId entityViewId = new EntityViewId(toUUID(strEntityViewId));
@@ -150,15 +116,9 @@ public class EntityViewController extends BaseController {
         }
     }
 
-    @ApiOperation(value = "Save or update entity view (saveEntityView)",
-            notes = ENTITY_VIEW_DESCRIPTION + MODEL_DESCRIPTION,
-            produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    @RequestMapping(value = "/entityView", method = RequestMethod.POST)
-    @ResponseBody
-    public EntityView saveEntityView(
-            @ApiParam(value = "A JSON object representing the entity view.")
-            @RequestBody EntityView entityView) throws ThingsboardException {
+    @PostMapping(value = "/entityView")
+    public EntityView saveEntityView(@RequestBody EntityView entityView) throws ThingsboardException {
         try {
             entityView.setTenantId(getCurrentUser().getTenantId());
 
@@ -392,15 +352,10 @@ public class EntityViewController extends BaseController {
                 keys);
     }
 
-    @ApiOperation(value = "Delete entity view (deleteEntityView)",
-            notes = "Delete the EntityView object based on the provided entity view id. "
-                    + TENANT_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
-    @RequestMapping(value = "/entityView/{entityViewId}", method = RequestMethod.DELETE)
+    @DeleteMapping(value = "/entityView/{entityViewId}")
     @ResponseStatus(value = HttpStatus.OK)
-    public void deleteEntityView(
-            @ApiParam(value = ENTITY_VIEW_ID_PARAM_DESCRIPTION)
-            @PathVariable(ENTITY_VIEW_ID) String strEntityViewId) throws ThingsboardException {
+    public void deleteEntityView(@PathVariable(ENTITY_VIEW_ID) String strEntityViewId) throws ThingsboardException {
         checkParameter(ENTITY_VIEW_ID, strEntityViewId);
         try {
             EntityViewId entityViewId = new EntityViewId(toUUID(strEntityViewId));
@@ -422,14 +377,9 @@ public class EntityViewController extends BaseController {
         }
     }
 
-    @ApiOperation(value = "Get Entity View by name (getTenantEntityView)",
-            notes = "Fetch the Entity View object based on the tenant id and entity view name. " + TENANT_AUTHORITY_PARAGRAPH,
-            produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
-    @RequestMapping(value = "/tenant/entityViews", params = {"entityViewName"}, method = RequestMethod.GET)
-    @ResponseBody
+    @GetMapping(value = "/tenant/entityViews", params = {"entityViewName"})
     public EntityView getTenantEntityView(
-            @ApiParam(value = "Entity View name")
             @RequestParam String entityViewName) throws ThingsboardException {
         try {
             TenantId tenantId = getCurrentUser().getTenantId();
@@ -439,16 +389,10 @@ public class EntityViewController extends BaseController {
         }
     }
 
-    @ApiOperation(value = "Assign Entity View to customer (assignEntityViewToCustomer)",
-            notes = "Creates assignment of the Entity View to customer. Customer will be able to query Entity View afterwards." + TENANT_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
-    @RequestMapping(value = "/customer/{customerId}/entityView/{entityViewId}", method = RequestMethod.POST)
-    @ResponseBody
-    public EntityView assignEntityViewToCustomer(
-            @ApiParam(value = CUSTOMER_ID_PARAM_DESCRIPTION)
-            @PathVariable(CUSTOMER_ID) String strCustomerId,
-            @ApiParam(value = ENTITY_VIEW_ID_PARAM_DESCRIPTION)
-            @PathVariable(ENTITY_VIEW_ID) String strEntityViewId) throws ThingsboardException {
+    @PostMapping(value = "/customer/{customerId}/entityView/{entityViewId}")
+    public EntityView assignEntityViewToCustomer(@PathVariable(CUSTOMER_ID) String strCustomerId,
+                                                 @PathVariable(ENTITY_VIEW_ID) String strEntityViewId) throws ThingsboardException {
         checkParameter(CUSTOMER_ID, strCustomerId);
         checkParameter(ENTITY_VIEW_ID, strEntityViewId);
         try {
@@ -475,14 +419,9 @@ public class EntityViewController extends BaseController {
         }
     }
 
-    @ApiOperation(value = "Unassign Entity View from customer (unassignEntityViewFromCustomer)",
-            notes = "Clears assignment of the Entity View to customer. Customer will not be able to query Entity View afterwards." + TENANT_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
-    @RequestMapping(value = "/customer/entityView/{entityViewId}", method = RequestMethod.DELETE)
-    @ResponseBody
-    public EntityView unassignEntityViewFromCustomer(
-            @ApiParam(value = ENTITY_VIEW_ID_PARAM_DESCRIPTION)
-            @PathVariable(ENTITY_VIEW_ID) String strEntityViewId) throws ThingsboardException {
+    @DeleteMapping(value = "/customer/entityView/{entityViewId}")
+    public EntityView unassignEntityViewFromCustomer(@PathVariable(ENTITY_VIEW_ID) String strEntityViewId) throws ThingsboardException {
         checkParameter(ENTITY_VIEW_ID, strEntityViewId);
         try {
             EntityViewId entityViewId = new EntityViewId(toUUID(strEntityViewId));
@@ -508,28 +447,17 @@ public class EntityViewController extends BaseController {
         }
     }
 
-    @ApiOperation(value = "Get Customer Entity Views (getCustomerEntityViews)",
-            notes = "Returns a page of Entity View objects assigned to customer. " +
-                    PAGE_DATA_PARAMETERS + TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    @RequestMapping(value = "/customer/{customerId}/entityViews", params = {"pageSize", "page"}, method = RequestMethod.GET)
-    @ResponseBody
+    @GetMapping(value = "/customer/{customerId}/entityViews", params = {"pageSize", "page"})
     public PageData<EntityView> getCustomerEntityViews(
-            @ApiParam(value = CUSTOMER_ID_PARAM_DESCRIPTION, required = true)
-            @PathVariable(CUSTOMER_ID) String strCustomerId,
-            @ApiParam(value = PAGE_SIZE_DESCRIPTION, required = true)
+            @PathVariable("customerId") String strCustomerId,
             @RequestParam int pageSize,
-            @ApiParam(value = PAGE_NUMBER_DESCRIPTION, required = true)
             @RequestParam int page,
-            @ApiParam(value = ENTITY_VIEW_TYPE)
             @RequestParam(required = false) String type,
-            @ApiParam(value = ENTITY_VIEW_TEXT_SEARCH_DESCRIPTION)
             @RequestParam(required = false) String textSearch,
-            @ApiParam(value = SORT_PROPERTY_DESCRIPTION, allowableValues = ENTITY_VIEW_SORT_PROPERTY_ALLOWABLE_VALUES)
             @RequestParam(required = false) String sortProperty,
-            @ApiParam(value = SORT_ORDER_DESCRIPTION, allowableValues = SORT_ORDER_ALLOWABLE_VALUES)
             @RequestParam(required = false) String sortOrder) throws ThingsboardException {
-        checkParameter(CUSTOMER_ID, strCustomerId);
+        checkParameter("customerId", strCustomerId);
         try {
             TenantId tenantId = getCurrentUser().getTenantId();
             CustomerId customerId = new CustomerId(toUUID(strCustomerId));
@@ -545,26 +473,15 @@ public class EntityViewController extends BaseController {
         }
     }
 
-    @ApiOperation(value = "Get Customer Entity View info (getCustomerEntityViewInfos)",
-            notes = "Returns a page of Entity View info objects assigned to customer. " + ENTITY_VIEW_DESCRIPTION +
-                    PAGE_DATA_PARAMETERS + TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    @RequestMapping(value = "/customer/{customerId}/entityViewInfos", params = {"pageSize", "page"}, method = RequestMethod.GET)
-    @ResponseBody
+    @GetMapping(value = "/customer/{customerId}/entityViewInfos", params = {"pageSize", "page"})
     public PageData<EntityViewInfo> getCustomerEntityViewInfos(
-            @ApiParam(value = CUSTOMER_ID_PARAM_DESCRIPTION, required = true)
-            @PathVariable(CUSTOMER_ID) String strCustomerId,
-            @ApiParam(value = PAGE_SIZE_DESCRIPTION, required = true)
+            @PathVariable("customerId") String strCustomerId,
             @RequestParam int pageSize,
-            @ApiParam(value = PAGE_NUMBER_DESCRIPTION, required = true)
             @RequestParam int page,
-            @ApiParam(value = ENTITY_VIEW_TYPE)
             @RequestParam(required = false) String type,
-            @ApiParam(value = ENTITY_VIEW_TEXT_SEARCH_DESCRIPTION)
             @RequestParam(required = false) String textSearch,
-            @ApiParam(value = SORT_PROPERTY_DESCRIPTION, allowableValues = ENTITY_VIEW_INFO_SORT_PROPERTY_ALLOWABLE_VALUES)
             @RequestParam(required = false) String sortProperty,
-            @ApiParam(value = SORT_ORDER_DESCRIPTION, allowableValues = SORT_ORDER_ALLOWABLE_VALUES)
             @RequestParam(required = false) String sortOrder) throws ThingsboardException {
         checkParameter("customerId", strCustomerId);
         try {
@@ -582,24 +499,14 @@ public class EntityViewController extends BaseController {
         }
     }
 
-    @ApiOperation(value = "Get Tenant Entity Views (getTenantEntityViews)",
-            notes = "Returns a page of entity views owned by tenant. " + ENTITY_VIEW_DESCRIPTION +
-                    PAGE_DATA_PARAMETERS + TENANT_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
-    @RequestMapping(value = "/tenant/entityViews", params = {"pageSize", "page"}, method = RequestMethod.GET)
-    @ResponseBody
+    @GetMapping(value = "/tenant/entityViews", params = {"pageSize", "page"})
     public PageData<EntityView> getTenantEntityViews(
-            @ApiParam(value = PAGE_SIZE_DESCRIPTION, required = true)
             @RequestParam int pageSize,
-            @ApiParam(value = PAGE_NUMBER_DESCRIPTION, required = true)
             @RequestParam int page,
-            @ApiParam(value = ENTITY_VIEW_TYPE)
             @RequestParam(required = false) String type,
-            @ApiParam(value = ENTITY_VIEW_TEXT_SEARCH_DESCRIPTION)
             @RequestParam(required = false) String textSearch,
-            @ApiParam(value = SORT_PROPERTY_DESCRIPTION, allowableValues = ENTITY_VIEW_SORT_PROPERTY_ALLOWABLE_VALUES)
             @RequestParam(required = false) String sortProperty,
-            @ApiParam(value = SORT_ORDER_DESCRIPTION, allowableValues = SORT_ORDER_ALLOWABLE_VALUES)
             @RequestParam(required = false) String sortOrder) throws ThingsboardException {
         try {
             TenantId tenantId = getCurrentUser().getTenantId();
@@ -615,24 +522,14 @@ public class EntityViewController extends BaseController {
         }
     }
 
-    @ApiOperation(value = "Get Tenant Entity Views (getTenantEntityViews)",
-            notes = "Returns a page of entity views info owned by tenant. " + ENTITY_VIEW_DESCRIPTION +
-                    PAGE_DATA_PARAMETERS + TENANT_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
-    @RequestMapping(value = "/tenant/entityViewInfos", params = {"pageSize", "page"}, method = RequestMethod.GET)
-    @ResponseBody
+    @GetMapping(value = "/tenant/entityViewInfos", params = {"pageSize", "page"})
     public PageData<EntityViewInfo> getTenantEntityViewInfos(
-            @ApiParam(value = PAGE_SIZE_DESCRIPTION, required = true)
             @RequestParam int pageSize,
-            @ApiParam(value = PAGE_NUMBER_DESCRIPTION, required = true)
             @RequestParam int page,
-            @ApiParam(value = ENTITY_VIEW_TYPE)
             @RequestParam(required = false) String type,
-            @ApiParam(value = ENTITY_VIEW_TEXT_SEARCH_DESCRIPTION)
             @RequestParam(required = false) String textSearch,
-            @ApiParam(value = SORT_PROPERTY_DESCRIPTION, allowableValues = ENTITY_VIEW_INFO_SORT_PROPERTY_ALLOWABLE_VALUES)
             @RequestParam(required = false) String sortProperty,
-            @ApiParam(value = SORT_ORDER_DESCRIPTION, allowableValues = SORT_ORDER_ALLOWABLE_VALUES)
             @RequestParam(required = false) String sortOrder) throws ThingsboardException {
         try {
             TenantId tenantId = getCurrentUser().getTenantId();
@@ -647,16 +544,9 @@ public class EntityViewController extends BaseController {
         }
     }
 
-    @ApiOperation(value = "Find related entity views (findByQuery)",
-            notes = "Returns all entity views that are related to the specific entity. " +
-                    "The entity id, relation type, entity view types, depth of the search, and other query parameters defined using complex 'EntityViewSearchQuery' object. " +
-                    "See 'Model' tab of the Parameters for more info." + TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    @RequestMapping(value = "/entityViews", method = RequestMethod.POST)
-    @ResponseBody
-    public List<EntityView> findByQuery(
-            @ApiParam(value = "The entity view search query JSON")
-            @RequestBody EntityViewSearchQuery query) throws ThingsboardException {
+    @PostMapping(value = "/entityViews")
+    public List<EntityView> findByQuery(@RequestBody EntityViewSearchQuery query) throws ThingsboardException {
         checkNotNull(query);
         checkNotNull(query.getParameters());
         checkNotNull(query.getEntityViewTypes());
@@ -677,12 +567,8 @@ public class EntityViewController extends BaseController {
         }
     }
 
-    @ApiOperation(value = "Get Entity View Types (getEntityViewTypes)",
-            notes = "Returns a set of unique entity view types based on entity views that are either owned by the tenant or assigned to the customer which user is performing the request."
-                    + TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    @RequestMapping(value = "/entityView/types", method = RequestMethod.GET)
-    @ResponseBody
+    @GetMapping(value = "/entityView/types")
     public List<EntitySubtype> getEntityViewTypes() throws ThingsboardException {
         try {
             SecurityUser user = getCurrentUser();
@@ -694,16 +580,9 @@ public class EntityViewController extends BaseController {
         }
     }
 
-    @ApiOperation(value = "Make entity view publicly available (assignEntityViewToPublicCustomer)",
-            notes = "Entity View will be available for non-authorized (not logged-in) users. " +
-                    "This is useful to create dashboards that you plan to share/embed on a publicly available website. " +
-                    "However, users that are logged-in and belong to different tenant will not be able to access the entity view." + TENANT_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
-    @RequestMapping(value = "/customer/public/entityView/{entityViewId}", method = RequestMethod.POST)
-    @ResponseBody
-    public EntityView assignEntityViewToPublicCustomer(
-            @ApiParam(value = ENTITY_VIEW_ID_PARAM_DESCRIPTION)
-            @PathVariable(ENTITY_VIEW_ID) String strEntityViewId) throws ThingsboardException {
+    @PostMapping(value = "/customer/public/entityView/{entityViewId}")
+    public EntityView assignEntityViewToPublicCustomer(@PathVariable(ENTITY_VIEW_ID) String strEntityViewId) throws ThingsboardException {
         checkParameter(ENTITY_VIEW_ID, strEntityViewId);
         try {
             EntityViewId entityViewId = new EntityViewId(toUUID(strEntityViewId));
@@ -724,16 +603,8 @@ public class EntityViewController extends BaseController {
         }
     }
 
-    @ApiOperation(value = "Assign entity view to edge (assignEntityViewToEdge)",
-            notes = "Creates assignment of an existing entity view to an instance of The Edge. " +
-                    EDGE_ASSIGN_ASYNC_FIRST_STEP_DESCRIPTION +
-                    "Second, remote edge service will receive a copy of assignment entity view " +
-                    EDGE_ASSIGN_RECEIVE_STEP_DESCRIPTION +
-                    "Third, once entity view will be delivered to edge service, it's going to be available for usage on remote edge instance.",
-            produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
-    @RequestMapping(value = "/edge/{edgeId}/entityView/{entityViewId}", method = RequestMethod.POST)
-    @ResponseBody
+    @PostMapping(value = "/edge/{edgeId}/entityView/{entityViewId}")
     public EntityView assignEntityViewToEdge(@PathVariable(EDGE_ID) String strEdgeId,
                                              @PathVariable(ENTITY_VIEW_ID) String strEntityViewId) throws ThingsboardException {
         checkParameter(EDGE_ID, strEdgeId);
@@ -743,7 +614,7 @@ public class EntityViewController extends BaseController {
             Edge edge = checkEdgeId(edgeId, Operation.READ);
 
             EntityViewId entityViewId = new EntityViewId(toUUID(strEntityViewId));
-            checkEntityViewId(entityViewId, Operation.READ);
+            checkEntityViewId(entityViewId, Operation.ASSIGN_TO_EDGE);
 
             EntityView savedEntityView = checkNotNull(entityViewService.assignEntityViewToEdge(getTenantId(), entityViewId, edgeId));
             logEntityAction(entityViewId, savedEntityView,
@@ -761,16 +632,8 @@ public class EntityViewController extends BaseController {
         }
     }
 
-    @ApiOperation(value = "Unassign entity view from edge (unassignEntityViewFromEdge)",
-            notes = "Clears assignment of the entity view to the edge. " +
-                    EDGE_UNASSIGN_ASYNC_FIRST_STEP_DESCRIPTION +
-                    "Second, remote edge service will receive an 'unassign' command to remove entity view " +
-                    EDGE_UNASSIGN_RECEIVE_STEP_DESCRIPTION +
-                    "Third, once 'unassign' command will be delivered to edge service, it's going to remove entity view locally.",
-            produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
-    @RequestMapping(value = "/edge/{edgeId}/entityView/{entityViewId}", method = RequestMethod.DELETE)
-    @ResponseBody
+    @DeleteMapping(value = "/edge/{edgeId}/entityView/{entityViewId}")
     public EntityView unassignEntityViewFromEdge(@PathVariable(EDGE_ID) String strEdgeId,
                                                  @PathVariable(ENTITY_VIEW_ID) String strEntityViewId) throws ThingsboardException {
         checkParameter(EDGE_ID, strEdgeId);
@@ -780,7 +643,7 @@ public class EntityViewController extends BaseController {
             Edge edge = checkEdgeId(edgeId, Operation.READ);
 
             EntityViewId entityViewId = new EntityViewId(toUUID(strEntityViewId));
-            EntityView entityView = checkEntityViewId(entityViewId, Operation.READ);
+            EntityView entityView = checkEntityViewId(entityViewId, Operation.UNASSIGN_FROM_EDGE);
 
             EntityView savedEntityView = checkNotNull(entityViewService.unassignEntityViewFromEdge(getTenantId(), entityViewId, edgeId));
             logEntityAction(entityViewId, entityView,
@@ -799,8 +662,7 @@ public class EntityViewController extends BaseController {
     }
 
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    @RequestMapping(value = "/edge/{edgeId}/entityViews", params = {"pageSize", "page"}, method = RequestMethod.GET)
-    @ResponseBody
+    @GetMapping(value = "/edge/{edgeId}/entityViews", params = {"pageSize", "page"})
     public PageData<EntityView> getEdgeEntityViews(
             @PathVariable(EDGE_ID) String strEdgeId,
             @RequestParam int pageSize,
