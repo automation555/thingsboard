@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.transaction.annotation.Transactional;
 import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.TenantInfo;
 import org.thingsboard.server.common.data.TenantProfile;
@@ -34,7 +38,6 @@ import org.thingsboard.server.dao.dashboard.DashboardService;
 import org.thingsboard.server.dao.device.DeviceProfileService;
 import org.thingsboard.server.dao.device.DeviceService;
 import org.thingsboard.server.dao.entity.AbstractEntityService;
-import org.thingsboard.server.dao.entityview.EntityViewService;
 import org.thingsboard.server.dao.exception.DataValidationException;
 import org.thingsboard.server.dao.ota.OtaPackageService;
 import org.thingsboard.server.dao.resource.ResourceService;
@@ -47,6 +50,7 @@ import org.thingsboard.server.dao.usagerecord.ApiUsageStateService;
 import org.thingsboard.server.dao.user.UserService;
 import org.thingsboard.server.dao.widget.WidgetsBundleService;
 
+import static org.thingsboard.server.common.data.CacheConstants.TENANTS_CACHE;
 import static org.thingsboard.server.dao.service.Validator.validateId;
 
 @Service
@@ -66,6 +70,7 @@ public class TenantServiceImpl extends AbstractEntityService implements TenantSe
     private TenantProfileService tenantProfileService;
 
     @Autowired
+    @Lazy
     private UserService userService;
 
     @Autowired
@@ -82,9 +87,6 @@ public class TenantServiceImpl extends AbstractEntityService implements TenantSe
 
     @Autowired
     private ApiUsageStateService apiUsageStateService;
-
-    @Autowired
-    private EntityViewService entityViewService;
 
     @Autowired
     private WidgetsBundleService widgetsBundleService;
@@ -105,6 +107,7 @@ public class TenantServiceImpl extends AbstractEntityService implements TenantSe
     private RpcService rpcService;
 
     @Override
+    @Cacheable(cacheNames = TENANTS_CACHE, key = "#tenantId")
     public Tenant findTenantById(TenantId tenantId) {
         log.trace("Executing findTenantById [{}]", tenantId);
         Validator.validateId(tenantId, INCORRECT_TENANT_ID + tenantId);
@@ -120,12 +123,14 @@ public class TenantServiceImpl extends AbstractEntityService implements TenantSe
 
     @Override
     public ListenableFuture<Tenant> findTenantByIdAsync(TenantId callerId, TenantId tenantId) {
-        log.trace("Executing TenantIdAsync [{}]", tenantId);
+        log.trace("Executing findTenantByIdAsync [{}]", tenantId);
         validateId(tenantId, INCORRECT_TENANT_ID + tenantId);
         return tenantDao.findByIdAsync(callerId, tenantId.getId());
     }
 
     @Override
+    @Transactional
+    @CacheEvict(cacheNames = TENANTS_CACHE, key = "#tenant.id", condition = "#tenant.id!=null")
     public Tenant saveTenant(Tenant tenant) {
         log.trace("Executing saveTenant [{}]", tenant);
         tenant.setRegion(DEFAULT_TENANT_REGION);
@@ -143,6 +148,8 @@ public class TenantServiceImpl extends AbstractEntityService implements TenantSe
     }
 
     @Override
+    @Transactional(timeout = 60 * 60)
+    @CacheEvict(cacheNames = TENANTS_CACHE, key = "#tenantId")
     public void deleteTenant(TenantId tenantId) {
         log.trace("Executing deleteTenant [{}]", tenantId);
         Validator.validateId(tenantId, INCORRECT_TENANT_ID + tenantId);
@@ -168,20 +175,27 @@ public class TenantServiceImpl extends AbstractEntityService implements TenantSe
     public PageData<Tenant> findTenants(PageLink pageLink) {
         log.trace("Executing findTenants pageLink [{}]", pageLink);
         Validator.validatePageLink(pageLink);
-        return tenantDao.findTenantsByRegion(TenantId.SYS_TENANT_ID, DEFAULT_TENANT_REGION, pageLink);
+        return tenantDao.findTenantsByRegion(new TenantId(EntityId.NULL_UUID), DEFAULT_TENANT_REGION, pageLink);
     }
 
     @Override
     public PageData<TenantInfo> findTenantInfos(PageLink pageLink) {
         log.trace("Executing findTenantInfos pageLink [{}]", pageLink);
         Validator.validatePageLink(pageLink);
-        return tenantDao.findTenantInfosByRegion(TenantId.SYS_TENANT_ID, DEFAULT_TENANT_REGION, pageLink);
+        return tenantDao.findTenantInfosByRegion(new TenantId(EntityId.NULL_UUID), DEFAULT_TENANT_REGION, pageLink);
     }
 
     @Override
     public void deleteTenants() {
         log.trace("Executing deleteTenants");
-        tenantsRemover.removeEntities(TenantId.SYS_TENANT_ID, DEFAULT_TENANT_REGION);
+        tenantsRemover.removeEntities(new TenantId(EntityId.NULL_UUID), DEFAULT_TENANT_REGION);
+    }
+
+    @Override
+    public PageData<TenantId> findTenantsIds(PageLink pageLink) {
+        log.trace("Executing findTenantsIds");
+        Validator.validatePageLink(pageLink);
+        return tenantDao.findTenantsIds(pageLink);
     }
 
     private DataValidator<Tenant> tenantValidator =
@@ -224,7 +238,7 @@ public class TenantServiceImpl extends AbstractEntityService implements TenantSe
 
                 @Override
                 protected void removeEntity(TenantId tenantId, Tenant entity) {
-                    deleteTenant(TenantId.fromUUID(entity.getUuidId()));
+                    deleteTenant(new TenantId(entity.getUuidId()));
                 }
             };
 }

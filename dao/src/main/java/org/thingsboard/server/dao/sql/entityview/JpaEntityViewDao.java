@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -172,7 +172,7 @@ public class JpaEntityViewDao extends JpaAbstractSearchTextDao<EntityViewEntity,
         if (types != null && !types.isEmpty()) {
             list = new ArrayList<>();
             for (String type : types) {
-                list.add(new EntitySubtype(TenantId.fromUUID(tenantId), EntityType.ENTITY_VIEW, type));
+                list.add(new EntitySubtype(new TenantId(tenantId), EntityType.ENTITY_VIEW, type));
             }
         }
         return list;
@@ -199,5 +199,13 @@ public class JpaEntityViewDao extends JpaAbstractSearchTextDao<EntityViewEntity,
                         type,
                         Objects.toString(pageLink.getTextSearch(), ""),
                         DaoUtil.toPageable(pageLink)));
+    }
+
+    @Override
+    public List<EntityView> findEntityViewsByTenantIdAndEntityId(UUID tenantId, UUID entityId) {
+        return DaoUtil.convertDataList(
+                entityViewRepository.findAllByTenantIdAndEntityId(
+                        tenantId, entityId)
+        );
     }
 }

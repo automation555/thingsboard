@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ import org.thingsboard.server.dao.model.ModelConstants;
 import org.thingsboard.server.dao.service.DataValidator;
 import org.thingsboard.server.dao.service.PaginatedRemover;
 import org.thingsboard.server.dao.service.Validator;
-import org.thingsboard.server.dao.tenant.TenantDao;
+import org.thingsboard.server.dao.tenant.TenantService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,7 +48,7 @@ public class WidgetsBundleServiceImpl implements WidgetsBundleService {
     private WidgetsBundleDao widgetsBundleDao;
 
     @Autowired
-    private TenantDao tenantDao;
+    private TenantService tenantService;
 
     @Autowired
     private WidgetTypeService widgetTypeService;
@@ -159,10 +159,10 @@ public class WidgetsBundleServiceImpl implements WidgetsBundleService {
                         throw new DataValidationException("Widgets bundle title should be specified!");
                     }
                     if (widgetsBundle.getTenantId() == null) {
-                        widgetsBundle.setTenantId(TenantId.fromUUID(ModelConstants.NULL_UUID));
+                        widgetsBundle.setTenantId(new TenantId(ModelConstants.NULL_UUID));
                     }
                     if (!widgetsBundle.getTenantId().getId().equals(ModelConstants.NULL_UUID)) {
-                        Tenant tenant = tenantDao.findById(tenantId, widgetsBundle.getTenantId().getId());
+                        Tenant tenant = tenantService.findTenantById(widgetsBundle.getTenantId());
                         if (tenant == null) {
                             throw new DataValidationException("Widgets bundle is referencing to non-existent tenant!");
                         }

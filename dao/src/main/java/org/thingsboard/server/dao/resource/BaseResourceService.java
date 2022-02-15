@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ import org.thingsboard.server.dao.service.DataValidator;
 import org.thingsboard.server.dao.service.PaginatedRemover;
 import org.thingsboard.server.dao.service.Validator;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
-import org.thingsboard.server.dao.tenant.TenantDao;
+import org.thingsboard.server.dao.tenant.TenantService;
 
 import java.util.List;
 import java.util.Optional;
@@ -52,13 +52,13 @@ public class BaseResourceService implements ResourceService {
     public static final String INCORRECT_RESOURCE_ID = "Incorrect resourceId ";
     private final TbResourceDao resourceDao;
     private final TbResourceInfoDao resourceInfoDao;
-    private final TenantDao tenantDao;
+    private final TenantService tenantService;
     private final TbTenantProfileCache tenantProfileCache;
 
-    public BaseResourceService(TbResourceDao resourceDao, TbResourceInfoDao resourceInfoDao, TenantDao tenantDao, @Lazy TbTenantProfileCache tenantProfileCache) {
+    public BaseResourceService(TbResourceDao resourceDao, TbResourceInfoDao resourceInfoDao, TenantService tenantService, @Lazy TbTenantProfileCache tenantProfileCache) {
         this.resourceDao = resourceDao;
         this.resourceInfoDao = resourceInfoDao;
-        this.tenantDao = tenantDao;
+        this.tenantService = tenantService;
         this.tenantProfileCache = tenantProfileCache;
     }
 
@@ -180,10 +180,10 @@ public class BaseResourceService implements ResourceService {
                 throw new DataValidationException("Resource key should be specified!");
             }
             if (resource.getTenantId() == null) {
-                resource.setTenantId(TenantId.fromUUID(ModelConstants.NULL_UUID));
+                resource.setTenantId(new TenantId(ModelConstants.NULL_UUID));
             }
             if (!resource.getTenantId().getId().equals(ModelConstants.NULL_UUID)) {
-                Tenant tenant = tenantDao.findById(tenantId, resource.getTenantId().getId());
+                Tenant tenant = tenantService.findTenantById(resource.getTenantId());
                 if (tenant == null) {
                     throw new DataValidationException("Resource is referencing to non-existent tenant!");
                 }

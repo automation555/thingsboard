@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -348,7 +348,7 @@ public class DefaultEdgeRequestsService implements EdgeRequestsService {
                     if (entityViews != null && !entityViews.isEmpty()) {
                         List<ListenableFuture<Boolean>> futures = new ArrayList<>();
                         for (EntityView entityView : entityViews) {
-                            ListenableFuture<Boolean> future = relationService.checkRelation(tenantId, edge.getId(), entityView.getId(),
+                            ListenableFuture<Boolean> future = relationService.checkRelationAsync(tenantId, edge.getId(), entityView.getId(),
                                     EntityRelation.CONTAINS_TYPE, RelationTypeGroup.EDGE);
                             futures.add(future);
                             Futures.addCallback(future, new FutureCallback<>() {
