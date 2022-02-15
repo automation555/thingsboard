@@ -23,10 +23,10 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.Device;
 import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.User;
-import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.kv.Aggregation;
 import org.thingsboard.server.common.data.kv.AttributeKvEntry;
 import org.thingsboard.server.common.data.kv.BaseAttributeKvEntry;
@@ -136,9 +136,9 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         TelemetryPluginCmdsWrapper wrapper = new TelemetryPluginCmdsWrapper();
         wrapper.setEntityDataCmds(Collections.singletonList(cmd));
 
-        wsClient.send(mapper.writeValueAsString(wrapper));
+        wsClient.send(JacksonUtil.toString(wrapper));
         String msg = wsClient.waitForReply();
-        EntityDataUpdate update = mapper.readValue(msg, EntityDataUpdate.class);
+        EntityDataUpdate update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         PageData<EntityData> pageData = update.getData();
         Assert.assertNotNull(pageData);
@@ -154,9 +154,9 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         sendTelemetry(device, tsData);
         Thread.sleep(100);
 
-        wsClient.send(mapper.writeValueAsString(wrapper));
+        wsClient.send(JacksonUtil.toString(wrapper));
         msg = wsClient.waitForReply();
-        update = mapper.readValue(msg, EntityDataUpdate.class);
+        update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         List<EntityData> dataList = update.getUpdate();
         Assert.assertNotNull(dataList);
@@ -190,9 +190,9 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         TelemetryPluginCmdsWrapper wrapper = new TelemetryPluginCmdsWrapper();
         wrapper.setEntityDataCmds(Collections.singletonList(cmd));
 
-        wsClient.send(mapper.writeValueAsString(wrapper));
+        wsClient.send(JacksonUtil.toString(wrapper));
         String msg = wsClient.waitForReply();
-        EntityDataUpdate update = mapper.readValue(msg, EntityDataUpdate.class);
+        EntityDataUpdate update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         PageData<EntityData> pageData = update.getData();
         Assert.assertNotNull(pageData);
@@ -217,9 +217,9 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         cmd = new EntityDataCmd(1, null, null, null, tsCmd);
         wrapper = new TelemetryPluginCmdsWrapper();
         wrapper.setEntityDataCmds(Collections.singletonList(cmd));
-        wsClient.send(mapper.writeValueAsString(wrapper));
+        wsClient.send(JacksonUtil.toString(wrapper));
         msg = wsClient.waitForReply();
-        update = mapper.readValue(msg, EntityDataUpdate.class);
+        update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         List<EntityData> listData = update.getUpdate();
         Assert.assertNotNull(listData);
@@ -238,7 +238,7 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         sendTelemetry(device, Arrays.asList(dataPoint4));
         msg = wsClient.waitForUpdate();
 
-        update = mapper.readValue(msg, EntityDataUpdate.class);
+        update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         List<EntityData> eData = update.getUpdate();
         Assert.assertNotNull(eData);
@@ -271,9 +271,9 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         TelemetryPluginCmdsWrapper wrapper1 = new TelemetryPluginCmdsWrapper();
         wrapper1.setEntityCountCmds(Collections.singletonList(cmd1));
 
-        wsClient.send(mapper.writeValueAsString(wrapper1));
+        wsClient.send(JacksonUtil.toString(wrapper1));
         String msg1 = wsClient.waitForReply();
-        EntityCountUpdate update1 = mapper.readValue(msg1, EntityCountUpdate.class);
+        EntityCountUpdate update1 = JacksonUtil.fromString(msg1, EntityCountUpdate.class);
         Assert.assertEquals(1, update1.getCmdId());
         Assert.assertEquals(1, update1.getCount());
 
@@ -286,10 +286,10 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
 
         TelemetryPluginCmdsWrapper wrapper2 = new TelemetryPluginCmdsWrapper();
         wrapper2.setEntityCountCmds(Collections.singletonList(cmd2));
-        wsClient.send(mapper.writeValueAsString(wrapper2));
+        wsClient.send(JacksonUtil.toString(wrapper2));
 
         String msg2 = wsClient.waitForReply();
-        EntityCountUpdate update2 = mapper.readValue(msg2, EntityCountUpdate.class);
+        EntityCountUpdate update2 = JacksonUtil.fromString(msg2, EntityCountUpdate.class);
         Assert.assertEquals(2, update2.getCmdId());
         Assert.assertEquals(0, update2.getCount());
 
@@ -310,10 +310,10 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
 
         TelemetryPluginCmdsWrapper wrapper3 = new TelemetryPluginCmdsWrapper();
         wrapper3.setEntityCountCmds(Collections.singletonList(cmd3));
-        wsClient.send(mapper.writeValueAsString(wrapper3));
+        wsClient.send(JacksonUtil.toString(wrapper3));
 
         String msg3 = wsClient.waitForReply();
-        EntityCountUpdate update3 = mapper.readValue(msg3, EntityCountUpdate.class);
+        EntityCountUpdate update3 = JacksonUtil.fromString(msg3, EntityCountUpdate.class);
         Assert.assertEquals(3, update3.getCmdId());
         Assert.assertEquals(1, update3.getCount());
 
@@ -334,10 +334,10 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
 
         TelemetryPluginCmdsWrapper wrapper4 = new TelemetryPluginCmdsWrapper();
         wrapper4.setEntityCountCmds(Collections.singletonList(cmd4));
-        wsClient.send(mapper.writeValueAsString(wrapper4));
+        wsClient.send(JacksonUtil.toString(wrapper4));
 
         String msg4 = wsClient.waitForReply();
-        EntityCountUpdate update4 = mapper.readValue(msg4, EntityCountUpdate.class);
+        EntityCountUpdate update4 = JacksonUtil.fromString(msg4, EntityCountUpdate.class);
         Assert.assertEquals(4, update4.getCmdId());
         Assert.assertEquals(0, update4.getCount());
     }
@@ -363,9 +363,9 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         TelemetryPluginCmdsWrapper wrapper = new TelemetryPluginCmdsWrapper();
         wrapper.setEntityDataCmds(Collections.singletonList(cmd));
 
-        wsClient.send(mapper.writeValueAsString(wrapper));
+        wsClient.send(JacksonUtil.toString(wrapper));
         String msg = wsClient.waitForReply();
-        EntityDataUpdate update = mapper.readValue(msg, EntityDataUpdate.class);
+        EntityDataUpdate update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         PageData<EntityData> pageData = update.getData();
         Assert.assertNotNull(pageData);
@@ -387,9 +387,9 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         wrapper = new TelemetryPluginCmdsWrapper();
         wrapper.setEntityDataCmds(Collections.singletonList(cmd));
 
-        wsClient.send(mapper.writeValueAsString(wrapper));
+        wsClient.send(JacksonUtil.toString(wrapper));
         msg = wsClient.waitForReply();
-        update = mapper.readValue(msg, EntityDataUpdate.class);
+        update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
 
         Assert.assertEquals(1, update.getCmdId());
 
@@ -408,7 +408,7 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         sendTelemetry(device, Arrays.asList(dataPoint2));
         msg = wsClient.waitForUpdate();
 
-        update = mapper.readValue(msg, EntityDataUpdate.class);
+        update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         List<EntityData> eData = update.getUpdate();
         Assert.assertNotNull(eData);
@@ -453,9 +453,9 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         TelemetryPluginCmdsWrapper wrapper = new TelemetryPluginCmdsWrapper();
         wrapper.setEntityDataCmds(Collections.singletonList(cmd));
 
-        wsClient.send(mapper.writeValueAsString(wrapper));
+        wsClient.send(JacksonUtil.toString(wrapper));
         String msg = wsClient.waitForReply();
-        EntityDataUpdate update = mapper.readValue(msg, EntityDataUpdate.class);
+        EntityDataUpdate update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         PageData<EntityData> pageData = update.getData();
         Assert.assertNotNull(pageData);
@@ -475,9 +475,9 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         wrapper = new TelemetryPluginCmdsWrapper();
         wrapper.setEntityDataCmds(Collections.singletonList(cmd));
 
-        wsClient.send(mapper.writeValueAsString(wrapper));
+        wsClient.send(JacksonUtil.toString(wrapper));
         msg = wsClient.waitForReply();
-        update = mapper.readValue(msg, EntityDataUpdate.class);
+        update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
 
         Assert.assertEquals(1, update.getCmdId());
 
@@ -496,7 +496,7 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         sendTelemetry(device, Arrays.asList(dataPoint2));
         msg = wsClient.waitForUpdate();
 
-        update = mapper.readValue(msg, EntityDataUpdate.class);
+        update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         List<EntityData> eData = update.getUpdate();
         Assert.assertNotNull(eData);
@@ -542,10 +542,10 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         TelemetryPluginCmdsWrapper wrapper = new TelemetryPluginCmdsWrapper();
         wrapper.setEntityDataCmds(Collections.singletonList(cmd));
 
-        wsClient.send(mapper.writeValueAsString(wrapper));
+        wsClient.send(JacksonUtil.toString(wrapper));
         String msg = wsClient.waitForReply();
         Assert.assertNotNull(msg);
-        EntityDataUpdate update = mapper.readValue(msg, EntityDataUpdate.class);
+        EntityDataUpdate update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         PageData<EntityData> pageData = update.getData();
         Assert.assertNotNull(pageData);
@@ -565,7 +565,7 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
 
         msg = wsClient.waitForUpdate();
         Assert.assertNotNull(msg);
-        update = mapper.readValue(msg, EntityDataUpdate.class);
+        update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
 
         Assert.assertEquals(1, update.getCmdId());
         List<EntityData> listData = update.getUpdate();
@@ -585,7 +585,7 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         msg = wsClient.waitForUpdate();
         Assert.assertNotNull(msg);
 
-        update = mapper.readValue(msg, EntityDataUpdate.class);
+        update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         List<EntityData> eData = update.getUpdate();
         Assert.assertNotNull(eData);
@@ -638,9 +638,9 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         TelemetryPluginCmdsWrapper wrapper = new TelemetryPluginCmdsWrapper();
         wrapper.setEntityDataCmds(Collections.singletonList(cmd));
 
-        wsClient.send(mapper.writeValueAsString(wrapper));
+        wsClient.send(JacksonUtil.toString(wrapper));
         String msg = wsClient.waitForReply();
-        EntityDataUpdate update = mapper.readValue(msg, EntityDataUpdate.class);
+        EntityDataUpdate update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         PageData<EntityData> pageData = update.getData();
         Assert.assertNotNull(pageData);
@@ -668,7 +668,7 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
 
         msg = wsClient.waitForUpdate();
         Assert.assertNotNull(msg);
-        update = mapper.readValue(msg, EntityDataUpdate.class);
+        update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         List<EntityData> eData = update.getUpdate();
         Assert.assertNotNull(eData);
@@ -695,7 +695,7 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         AttributeKvEntry dataPoint2 = new BaseAttributeKvEntry(now, new LongDataEntry("sharedAttributeKey", 42L));
         sendAttributes(device, TbAttributeSubscriptionScope.SHARED_SCOPE, Arrays.asList(dataPoint2));
         msg = wsClient.waitForUpdate(TimeUnit.SECONDS.toMillis(1));
-        update = mapper.readValue(msg, EntityDataUpdate.class);
+        update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         eData = update.getUpdate();
         Assert.assertNotNull(eData);
@@ -709,7 +709,7 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         AttributeKvEntry dataPoint3 = new BaseAttributeKvEntry(now, new LongDataEntry("clientAttributeKey", 42L));
         sendAttributes(device, TbAttributeSubscriptionScope.CLIENT_SCOPE, Arrays.asList(dataPoint3));
         msg = wsClient.waitForUpdate(TimeUnit.SECONDS.toMillis(1));
-        update = mapper.readValue(msg, EntityDataUpdate.class);
+        update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         eData = update.getUpdate();
         Assert.assertNotNull(eData);
@@ -723,7 +723,7 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         AttributeKvEntry dataPoint4 = new BaseAttributeKvEntry(now, new LongDataEntry("anyAttributeKey", 42L));
         sendAttributes(device, TbAttributeSubscriptionScope.CLIENT_SCOPE, Arrays.asList(dataPoint4));
         msg = wsClient.waitForUpdate(TimeUnit.SECONDS.toMillis(1));
-        update = mapper.readValue(msg, EntityDataUpdate.class);
+        update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         eData = update.getUpdate();
         Assert.assertNotNull(eData);
@@ -737,7 +737,7 @@ public abstract class BaseWebsocketApiTest extends AbstractWebsocketTest {
         AttributeKvEntry dataPoint5 = new BaseAttributeKvEntry(now, new LongDataEntry("anyAttributeKey", 43L));
         sendAttributes(device, TbAttributeSubscriptionScope.SERVER_SCOPE, Arrays.asList(dataPoint5));
         msg = wsClient.waitForUpdate(TimeUnit.SECONDS.toMillis(1));
-        update = mapper.readValue(msg, EntityDataUpdate.class);
+        update = JacksonUtil.fromString(msg, EntityDataUpdate.class);
         Assert.assertEquals(1, update.getCmdId());
         eData = update.getUpdate();
         Assert.assertNotNull(eData);

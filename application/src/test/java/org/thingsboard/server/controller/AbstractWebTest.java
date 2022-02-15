@@ -17,7 +17,6 @@ package org.thingsboard.server.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Header;
 import io.jsonwebtoken.Jwt;
@@ -49,6 +48,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.context.WebApplicationContext;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.DeviceProfile;
 import org.thingsboard.server.common.data.DeviceProfileType;
@@ -96,8 +96,6 @@ import static org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppC
 
 @Slf4j
 public abstract class AbstractWebTest extends AbstractInMemoryStorageTest {
-
-    protected ObjectMapper mapper = new ObjectMapper();
 
     protected static final String TEST_TENANT_NAME = "TEST TENANT";
 
@@ -296,7 +294,7 @@ public abstract class AbstractWebTest extends AbstractInMemoryStorageTest {
         doGet("/api/noauth/activate?activateToken={activateToken}", TestMailService.currentActivateToken)
                 .andExpect(status().isSeeOther())
                 .andExpect(header().string(HttpHeaders.LOCATION, "/login/createPassword?activateToken=" + TestMailService.currentActivateToken));
-        return new ObjectMapper().createObjectNode()
+        return JacksonUtil.newObjectNode()
                 .put("activateToken", TestMailService.currentActivateToken)
                 .put("password", password);
     }
@@ -580,8 +578,7 @@ public abstract class AbstractWebTest extends AbstractInMemoryStorageTest {
 
     protected <T> T readResponse(ResultActions result, TypeReference<T> type) throws Exception {
         byte[] content = result.andReturn().getResponse().getContentAsByteArray();
-        ObjectMapper mapper = new ObjectMapper();
-        return mapper.readerFor(type).readValue(content);
+        return JacksonUtil.fromBytes(content, type);
     }
 
     public class IdComparator<D extends HasId> implements Comparator<D> {

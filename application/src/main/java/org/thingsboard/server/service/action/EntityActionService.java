@@ -15,13 +15,13 @@
  */
 package org.thingsboard.server.service.action;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.DataConstants;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.HasName;
@@ -54,8 +54,6 @@ import java.util.stream.Collectors;
 public class EntityActionService {
     private final TbClusterService tbClusterService;
     private final AuditLogService auditLogService;
-
-    private static final ObjectMapper json = new ObjectMapper();
 
     public void pushEntityActionToRuleEngine(EntityId entityId, HasName entity, TenantId tenantId, CustomerId customerId,
                                              ActionType actionType, User user, Object... additionalInfo) {
@@ -159,12 +157,12 @@ public class EntityActionService {
                 }
                 ObjectNode entityNode;
                 if (entity != null) {
-                    entityNode = json.valueToTree(entity);
+                    entityNode = JacksonUtil.valueToTree(entity).deepCopy();
                     if (entityId.getEntityType() == EntityType.DASHBOARD) {
                         entityNode.put("configuration", "");
                     }
                 } else {
-                    entityNode = json.createObjectNode();
+                    entityNode = JacksonUtil.newObjectNode();
                     if (actionType == ActionType.ATTRIBUTES_UPDATED) {
                         String scope = extractParameter(String.class, 0, additionalInfo);
                         @SuppressWarnings("unchecked")
@@ -199,7 +197,7 @@ public class EntityActionService {
                         entityNode.put("endTs", extractParameter(Long.class, 2, additionalInfo));
                     }
                 }
-                TbMsg tbMsg = TbMsg.newMsg(msgType, entityId, customerId, metaData, TbMsgDataType.JSON, json.writeValueAsString(entityNode));
+                TbMsg tbMsg = TbMsg.newMsg(msgType, entityId, customerId, metaData, TbMsgDataType.JSON, JacksonUtil.toString(entityNode));
                 if (tenantId.isNullUid()) {
                     if (entity instanceof HasTenantId) {
                         tenantId = ((HasTenantId) entity).getTenantId();
@@ -241,7 +239,7 @@ public class EntityActionService {
             Map<Long, List<TsKvEntry>> groupedTelemetry = timeseries.stream()
                     .collect(Collectors.groupingBy(TsKvEntry::getTs));
             for (Map.Entry<Long, List<TsKvEntry>> entry : groupedTelemetry.entrySet()) {
-                ObjectNode element = json.createObjectNode();
+                ObjectNode element = JacksonUtil.newObjectNode();
                 element.put("ts", entry.getKey());
                 ObjectNode values = element.putObject("values");
                 for (TsKvEntry tsKvEntry : entry.getValue()) {
@@ -261,7 +259,7 @@ public class EntityActionService {
             kvEntry.getLongValue().ifPresent(value -> entityNode.put(kvEntry.getKey(), value));
         } else if (kvEntry.getDataType() == DataType.JSON) {
             if (kvEntry.getJsonValue().isPresent()) {
-                entityNode.set(kvEntry.getKey(), json.readTree(kvEntry.getJsonValue().get()));
+                entityNode.set(kvEntry.getKey(), JacksonUtil.toJsonNode(kvEntry.getJsonValue().get()));
             }
         } else {
             entityNode.put(kvEntry.getKey(), kvEntry.getValueAsString());

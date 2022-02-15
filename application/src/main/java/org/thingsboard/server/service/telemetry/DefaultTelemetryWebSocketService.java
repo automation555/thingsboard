@@ -15,8 +15,6 @@
  */
 package org.thingsboard.server.service.telemetry;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Function;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -28,6 +26,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.socket.CloseStatus;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.common.util.ThingsBoardExecutors;
 import org.thingsboard.common.util.ThingsBoardThreadFactory;
 import org.thingsboard.server.common.data.DataConstants;
@@ -109,7 +108,6 @@ public class DefaultTelemetryWebSocketService implements TelemetryWebSocketServi
     private static final Aggregation DEFAULT_AGGREGATION = Aggregation.NONE;
     private static final int UNKNOWN_SUBSCRIPTION_ID = 0;
     private static final String PROCESSING_MSG = "[{}] Processing: {}";
-    private static final ObjectMapper jsonMapper = new ObjectMapper();
     private static final String FAILED_TO_FETCH_DATA = "Failed to fetch data!";
     private static final String FAILED_TO_FETCH_ATTRIBUTES = "Failed to fetch attributes!";
     private static final String SESSION_META_DATA_NOT_FOUND = "Session meta-data not found!";
@@ -206,48 +204,43 @@ public class DefaultTelemetryWebSocketService implements TelemetryWebSocketServi
             log.trace("[{}] Processing: {}", sessionRef.getSessionId(), msg);
         }
 
-        try {
-            TelemetryPluginCmdsWrapper cmdsWrapper = jsonMapper.readValue(msg, TelemetryPluginCmdsWrapper.class);
-            if (cmdsWrapper != null) {
-                if (cmdsWrapper.getAttrSubCmds() != null) {
-                    cmdsWrapper.getAttrSubCmds().forEach(cmd -> {
-                        if (processSubscription(sessionRef, cmd)) {
-                            handleWsAttributesSubscriptionCmd(sessionRef, cmd);
-                        }
-                    });
-                }
-                if (cmdsWrapper.getTsSubCmds() != null) {
-                    cmdsWrapper.getTsSubCmds().forEach(cmd -> {
-                        if (processSubscription(sessionRef, cmd)) {
-                            handleWsTimeseriesSubscriptionCmd(sessionRef, cmd);
-                        }
-                    });
-                }
-                if (cmdsWrapper.getHistoryCmds() != null) {
-                    cmdsWrapper.getHistoryCmds().forEach(cmd -> handleWsHistoryCmd(sessionRef, cmd));
-                }
-                if (cmdsWrapper.getEntityDataCmds() != null) {
-                    cmdsWrapper.getEntityDataCmds().forEach(cmd -> handleWsEntityDataCmd(sessionRef, cmd));
-                }
-                if (cmdsWrapper.getAlarmDataCmds() != null) {
-                    cmdsWrapper.getAlarmDataCmds().forEach(cmd -> handleWsAlarmDataCmd(sessionRef, cmd));
-                }
-                if (cmdsWrapper.getEntityCountCmds() != null) {
-                    cmdsWrapper.getEntityCountCmds().forEach(cmd -> handleWsEntityCountCmd(sessionRef, cmd));
-                }
-                if (cmdsWrapper.getEntityDataUnsubscribeCmds() != null) {
-                    cmdsWrapper.getEntityDataUnsubscribeCmds().forEach(cmd -> handleWsDataUnsubscribeCmd(sessionRef, cmd));
-                }
-                if (cmdsWrapper.getAlarmDataUnsubscribeCmds() != null) {
-                    cmdsWrapper.getAlarmDataUnsubscribeCmds().forEach(cmd -> handleWsDataUnsubscribeCmd(sessionRef, cmd));
-                }
-                if (cmdsWrapper.getEntityCountUnsubscribeCmds() != null) {
-                    cmdsWrapper.getEntityCountUnsubscribeCmds().forEach(cmd -> handleWsDataUnsubscribeCmd(sessionRef, cmd));
-                }
+        TelemetryPluginCmdsWrapper cmdsWrapper = JacksonUtil.fromString(msg, TelemetryPluginCmdsWrapper.class);
+        if (cmdsWrapper != null) {
+            if (cmdsWrapper.getAttrSubCmds() != null) {
+                cmdsWrapper.getAttrSubCmds().forEach(cmd -> {
+                    if (processSubscription(sessionRef, cmd)) {
+                        handleWsAttributesSubscriptionCmd(sessionRef, cmd);
+                    }
+                });
             }
-        } catch (IOException e) {
-            log.warn("Failed to decode subscription cmd: {}", e.getMessage(), e);
-            sendWsMsg(sessionRef, new TelemetrySubscriptionUpdate(UNKNOWN_SUBSCRIPTION_ID, SubscriptionErrorCode.BAD_REQUEST, FAILED_TO_PARSE_WS_COMMAND));
+            if (cmdsWrapper.getTsSubCmds() != null) {
+                cmdsWrapper.getTsSubCmds().forEach(cmd -> {
+                    if (processSubscription(sessionRef, cmd)) {
+                        handleWsTimeseriesSubscriptionCmd(sessionRef, cmd);
+                    }
+                });
+            }
+            if (cmdsWrapper.getHistoryCmds() != null) {
+                cmdsWrapper.getHistoryCmds().forEach(cmd -> handleWsHistoryCmd(sessionRef, cmd));
+            }
+            if (cmdsWrapper.getEntityDataCmds() != null) {
+                cmdsWrapper.getEntityDataCmds().forEach(cmd -> handleWsEntityDataCmd(sessionRef, cmd));
+            }
+            if (cmdsWrapper.getAlarmDataCmds() != null) {
+                cmdsWrapper.getAlarmDataCmds().forEach(cmd -> handleWsAlarmDataCmd(sessionRef, cmd));
+            }
+            if (cmdsWrapper.getEntityCountCmds() != null) {
+                cmdsWrapper.getEntityCountCmds().forEach(cmd -> handleWsEntityCountCmd(sessionRef, cmd));
+            }
+            if (cmdsWrapper.getEntityDataUnsubscribeCmds() != null) {
+                cmdsWrapper.getEntityDataUnsubscribeCmds().forEach(cmd -> handleWsDataUnsubscribeCmd(sessionRef, cmd));
+            }
+            if (cmdsWrapper.getAlarmDataUnsubscribeCmds() != null) {
+                cmdsWrapper.getAlarmDataUnsubscribeCmds().forEach(cmd -> handleWsDataUnsubscribeCmd(sessionRef, cmd));
+            }
+            if (cmdsWrapper.getEntityCountUnsubscribeCmds() != null) {
+                cmdsWrapper.getEntityCountUnsubscribeCmds().forEach(cmd -> handleWsDataUnsubscribeCmd(sessionRef, cmd));
+            }
         }
     }
 
@@ -788,18 +781,14 @@ public class DefaultTelemetryWebSocketService implements TelemetryWebSocketServi
     }
 
     private void sendWsMsg(TelemetryWebSocketSessionRef sessionRef, int cmdId, Object update) {
-        try {
-            String msg = jsonMapper.writeValueAsString(update);
-            executor.submit(() -> {
-                try {
-                    msgEndpoint.send(sessionRef, cmdId, msg);
-                } catch (IOException e) {
-                    log.warn("[{}] Failed to send reply: {}", sessionRef.getSessionId(), update, e);
-                }
-            });
-        } catch (JsonProcessingException e) {
-            log.warn("[{}] Failed to encode reply: {}", sessionRef.getSessionId(), update, e);
-        }
+        String msg = JacksonUtil.toString(update);
+        executor.submit(() -> {
+            try {
+                msgEndpoint.send(sessionRef, cmdId, msg);
+            } catch (IOException e) {
+                log.warn("[{}] Failed to send reply: {}", sessionRef.getSessionId(), update, e);
+            }
+        });
     }
 
     private void sendPing() {

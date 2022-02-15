@@ -15,10 +15,10 @@
  */
 package org.thingsboard.rule.engine.mail;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.rule.engine.api.RuleNode;
 import org.thingsboard.rule.engine.api.TbContext;
 import org.thingsboard.rule.engine.api.TbEmail;
@@ -29,7 +29,6 @@ import org.thingsboard.rule.engine.api.util.TbNodeUtils;
 import org.thingsboard.server.common.data.plugin.ComponentType;
 import org.thingsboard.server.common.msg.TbMsg;
 
-import java.io.IOException;
 import java.util.Properties;
 
 import static org.thingsboard.common.util.DonAsynchron.withCallback;
@@ -51,7 +50,6 @@ public class TbSendEmailNode implements TbNode {
 
     private static final String MAIL_PROP = "mail.";
     static final String SEND_EMAIL_TYPE = "SEND_EMAIL";
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private TbSendEmailNodeConfiguration config;
     private JavaMailSenderImpl mailSender;
@@ -92,8 +90,8 @@ public class TbSendEmailNode implements TbNode {
         }
     }
 
-    private TbEmail getEmail(TbMsg msg) throws IOException {
-        TbEmail email = MAPPER.readValue(msg.getData(), TbEmail.class);
+    private TbEmail getEmail(TbMsg msg) {
+        TbEmail email = JacksonUtil.fromString(msg.getData(), TbEmail.class);
         if (StringUtils.isBlank(email.getTo())) {
             throw new IllegalStateException("Email destination can not be blank [" + email.getTo() + "]");
         }

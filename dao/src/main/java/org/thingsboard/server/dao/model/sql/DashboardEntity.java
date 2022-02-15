@@ -15,16 +15,14 @@
  */
 package org.thingsboard.server.dao.model.sql;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.annotations.Type;
 import org.hibernate.annotations.TypeDef;
-import org.springframework.util.StringUtils;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.Dashboard;
 import org.thingsboard.server.common.data.ShortCustomerInfo;
 import org.thingsboard.server.common.data.id.DashboardId;
@@ -37,7 +35,6 @@ import org.thingsboard.server.dao.util.mapping.JsonStringType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Table;
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.UUID;
 
@@ -49,9 +46,8 @@ import java.util.UUID;
 @Table(name = ModelConstants.DASHBOARD_COLUMN_FAMILY_NAME)
 public final class DashboardEntity extends BaseSqlEntity<Dashboard> implements SearchTextEntity<Dashboard> {
 
-    private static final ObjectMapper objectMapper = new ObjectMapper();
     private static final JavaType assignedCustomersType =
-            objectMapper.getTypeFactory().constructCollectionType(HashSet.class, ShortCustomerInfo.class);
+            JacksonUtil.constructCollectionType(HashSet.class, ShortCustomerInfo.class);
 
     @Column(name = ModelConstants.DASHBOARD_TENANT_ID_PROPERTY)
     private UUID tenantId;
@@ -93,11 +89,7 @@ public final class DashboardEntity extends BaseSqlEntity<Dashboard> implements S
         this.title = dashboard.getTitle();
         this.image = dashboard.getImage();
         if (dashboard.getAssignedCustomers() != null) {
-            try {
-                this.assignedCustomers = objectMapper.writeValueAsString(dashboard.getAssignedCustomers());
-            } catch (JsonProcessingException e) {
-                log.error("Unable to serialize assigned customers to string!", e);
-            }
+            this.assignedCustomers = JacksonUtil.toString(dashboard.getAssignedCustomers());
         }
         this.mobileHide = dashboard.isMobileHide();
         this.mobileOrder = dashboard.getMobileOrder();
@@ -123,13 +115,7 @@ public final class DashboardEntity extends BaseSqlEntity<Dashboard> implements S
         }
         dashboard.setTitle(title);
         dashboard.setImage(image);
-        if (!StringUtils.isEmpty(assignedCustomers)) {
-            try {
-                dashboard.setAssignedCustomers(objectMapper.readValue(assignedCustomers, assignedCustomersType));
-            } catch (IOException e) {
-                log.warn("Unable to parse assigned customers!", e);
-            }
-        }
+        dashboard.setAssignedCustomers(JacksonUtil.fromString(assignedCustomers, assignedCustomersType));
         dashboard.setMobileHide(mobileHide);
         dashboard.setMobileOrder(mobileOrder);
         dashboard.setConfiguration(configuration);

@@ -16,7 +16,6 @@
 package org.thingsboard.server.service.edge.rpc.sync;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -26,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.Device;
 import org.thingsboard.server.common.data.DeviceProfile;
 import org.thingsboard.server.common.data.EdgeUtils;
@@ -84,8 +84,6 @@ import java.util.UUID;
 @Service
 @Slf4j
 public class DefaultEdgeRequestsService implements EdgeRequestsService {
-
-    private static final ObjectMapper mapper = new ObjectMapper();
 
     private static final int DEFAULT_PAGE_SIZE = 1000;
 
@@ -148,7 +146,7 @@ public class DefaultEdgeRequestsService implements EdgeRequestsService {
                     if (ssAttributes != null && !ssAttributes.isEmpty()) {
                         try {
                             Map<String, Object> entityData = new HashMap<>();
-                            ObjectNode attributes = mapper.createObjectNode();
+                            ObjectNode attributes = JacksonUtil.newObjectNode();
                             for (AttributeKvEntry attr : ssAttributes) {
                                 if (attr.getDataType() == DataType.BOOLEAN && attr.getBooleanValue().isPresent()) {
                                     attributes.put(attr.getKey(), attr.getBooleanValue().get());
@@ -162,7 +160,7 @@ public class DefaultEdgeRequestsService implements EdgeRequestsService {
                             }
                             entityData.put("kv", attributes);
                             entityData.put("scope", scope);
-                            JsonNode body = mapper.valueToTree(entityData);
+                            JsonNode body = JacksonUtil.valueToTree(entityData);
                             log.debug("Sending attributes data msg, entityId [{}], attributes [{}]", entityId, body);
                             saveEdgeEvent(tenantId,
                                     edge.getId(),
@@ -225,7 +223,7 @@ public class DefaultEdgeRequestsService implements EdgeRequestsService {
                                                 EdgeEventType.RELATION,
                                                 EdgeEventActionType.ADDED,
                                                 null,
-                                                mapper.valueToTree(relation));
+                                                JacksonUtil.valueToTree(relation));
                                     }
                                 } catch (Exception e) {
                                     log.error("Exception during loading relation [{}] to edge on sync!", relation, e);

@@ -15,12 +15,12 @@
  */
 package org.thingsboard.rule.engine.filter;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import lombok.extern.slf4j.Slf4j;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.rule.engine.api.RuleNode;
 import org.thingsboard.rule.engine.api.TbContext;
 import org.thingsboard.rule.engine.api.TbNode;
@@ -47,7 +47,6 @@ import java.io.IOException;
         configDirective = "tbFilterNodeCheckAlarmStatusConfig")
 public class TbCheckAlarmStatusNode implements TbNode {
     private TbCheckAlarmStatusNodeConfig config;
-    private final ObjectMapper mapper = new ObjectMapper();
 
     @Override
     public void init(TbContext tbContext, TbNodeConfiguration configuration) throws TbNodeException {
@@ -56,41 +55,36 @@ public class TbCheckAlarmStatusNode implements TbNode {
 
     @Override
     public void onMsg(TbContext ctx, TbMsg msg) throws TbNodeException {
-        try {
-            Alarm alarm = mapper.readValue(msg.getData(), Alarm.class);
+        Alarm alarm = JacksonUtil.fromString(msg.getData(), Alarm.class);
 
-            ListenableFuture<Alarm> latest = ctx.getAlarmService().findAlarmByIdAsync(ctx.getTenantId(), alarm.getId());
+        ListenableFuture<Alarm> latest = ctx.getAlarmService().findAlarmByIdAsync(ctx.getTenantId(), alarm.getId());
 
-            Futures.addCallback(latest, new FutureCallback<Alarm>() {
-                @Override
-                public void onSuccess(@Nullable Alarm result) {
-                    if (result != null) {
-                        boolean isPresent = false;
-                        for (AlarmStatus alarmStatus : config.getAlarmStatusList()) {
-                            if (result.getStatus() == alarmStatus) {
-                                isPresent = true;
-                                break;
-                            }
+        Futures.addCallback(latest, new FutureCallback<Alarm>() {
+            @Override
+            public void onSuccess(@Nullable Alarm result) {
+                if (result != null) {
+                    boolean isPresent = false;
+                    for (AlarmStatus alarmStatus : config.getAlarmStatusList()) {
+                        if (result.getStatus() == alarmStatus) {
+                            isPresent = true;
+                            break;
                         }
-                        if (isPresent) {
-                            ctx.tellNext(msg, "True");
-                        } else {
-                            ctx.tellNext(msg, "False");
-                        }
-                    } else {
-                        ctx.tellFailure(msg, new TbNodeException("No such alarm found."));
                     }
+                    if (isPresent) {
+                        ctx.tellNext(msg, "True");
+                    } else {
+                        ctx.tellNext(msg, "False");
+                    }
+                } else {
+                    ctx.tellFailure(msg, new TbNodeException("No such alarm found."));
                 }
+            }
 
-                @Override
-                public void onFailure(Throwable t) {
-                    ctx.tellFailure(msg, t);
-                }
-            }, MoreExecutors.directExecutor());
-        } catch (IOException e) {
-            log.error("Failed to parse alarm: [{}]", msg.getData());
-            throw new TbNodeException(e);
-        }
+            @Override
+            public void onFailure(Throwable t) {
+                ctx.tellFailure(msg, t);
+            }
+        }, MoreExecutors.directExecutor());
     }
 
     @Override

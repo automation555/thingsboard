@@ -16,7 +16,6 @@
 package org.thingsboard.server.service.edge.rpc.processor;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.thingsboard.server.common.data.HasCustomerId;
@@ -67,8 +66,6 @@ import org.thingsboard.server.service.state.DeviceStateService;
 
 @Slf4j
 public abstract class BaseEdgeProcessor {
-
-    protected static final ObjectMapper mapper = new ObjectMapper();
 
     protected static final int DEFAULT_PAGE_SIZE = 1000;
 

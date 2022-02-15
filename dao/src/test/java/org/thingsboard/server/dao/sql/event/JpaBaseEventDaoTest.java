@@ -17,11 +17,11 @@ package org.thingsboard.server.dao.sql.event;
 
 import com.datastax.oss.driver.api.core.uuid.Uuids;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.springtestdbunit.annotation.DatabaseSetup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.Event;
 import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.id.EntityId;
@@ -33,8 +33,6 @@ import org.thingsboard.server.dao.AbstractJpaDaoTest;
 import org.thingsboard.server.dao.event.EventDao;
 import org.thingsboard.server.dao.service.AbstractServiceTest;
 
-import java.io.IOException;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -183,13 +181,8 @@ public class JpaBaseEventDaoTest extends AbstractJpaDaoTest {
         event.setEntityId(deviceId);
         event.setUid(event.getId().getId().toString());
         event.setType(STATS);
-        ObjectMapper mapper = new ObjectMapper();
-        try {
-            JsonNode jsonNode = mapper.readTree("{\"key\":\"value\"}");
-            event.setBody(jsonNode);
-        } catch (IOException e) {
-            log.error(e.getMessage(), e);
-        }
+        JsonNode jsonNode = JacksonUtil.toJsonNode("{\"key\":\"value\"}");
+        event.setBody(jsonNode);
         return event;
     }
 }

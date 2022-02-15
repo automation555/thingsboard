@@ -15,9 +15,9 @@
  */
 package org.thingsboard.server.common.msg.queue;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.id.RuleChainId;
 import org.thingsboard.server.common.data.id.RuleNodeId;
 import org.thingsboard.server.common.data.rule.RuleNode;
@@ -53,17 +53,12 @@ public class RuleNodeException extends RuleEngineException {
     }
 
     public String toJsonString() {
-        try {
-            return mapper.writeValueAsString(mapper.createObjectNode()
-                    .put("ruleNodeId", ruleNodeId.toString())
-                    .put("ruleChainId", ruleChainId.toString())
-                    .put("ruleNodeName", ruleNodeName)
-                    .put("ruleChainName", ruleChainName)
-                    .put("message", getMessage()));
-        } catch (JsonProcessingException e) {
-            log.warn("Failed to serialize exception ", e);
-            throw new RuntimeException(e);
-        }
+        return JacksonUtil.toString(JacksonUtil.newObjectNode()
+                .put("ruleNodeId", ruleNodeId.toString())
+                .put("ruleChainId", ruleChainId.toString())
+                .put("ruleNodeName", ruleNodeName)
+                .put("ruleChainName", ruleChainName)
+                .put("message", getMessage()));
     }
 
 }
