@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ import org.springframework.web.filter.CorsFilter;
 import org.thingsboard.server.dao.audit.AuditLogLevelFilter;
 import org.thingsboard.server.dao.oauth2.OAuth2Configuration;
 import org.thingsboard.server.exception.ThingsboardErrorResponseHandler;
+import org.thingsboard.server.service.security.auth.UserActiveSessionsLimitService;
 import org.thingsboard.server.service.security.auth.jwt.JwtAuthenticationProvider;
 import org.thingsboard.server.service.security.auth.jwt.JwtTokenAuthenticationProcessingFilter;
 import org.thingsboard.server.service.security.auth.jwt.RefreshTokenAuthenticationProvider;
@@ -64,7 +65,6 @@ import java.util.List;
 public class ThingsboardSecurityConfiguration extends WebSecurityConfigurerAdapter {
 
     public static final String JWT_TOKEN_HEADER_PARAM = "X-Authorization";
-    public static final String JWT_TOKEN_HEADER_PARAM_V2 = "Authorization";
     public static final String JWT_TOKEN_QUERY_PARAM = "token";
 
     public static final String WEBJARS_ENTRY_POINT = "/webjars/**";
@@ -117,6 +117,8 @@ public class ThingsboardSecurityConfiguration extends WebSecurityConfigurerAdapt
 
     @Autowired private RateLimitProcessingFilter rateLimitProcessingFilter;
 
+    @Autowired private UserActiveSessionsLimitService userActiveSessionsLimitService;
+
     @Bean
     protected RestLoginProcessingFilter buildRestLoginProcessingFilter() throws Exception {
         RestLoginProcessingFilter filter = new RestLoginProcessingFilter(FORM_BASED_LOGIN_ENTRY_POINT, successHandler, failureHandler, objectMapper);
@@ -137,7 +139,7 @@ public class ThingsboardSecurityConfiguration extends WebSecurityConfigurerAdapt
                 PUBLIC_LOGIN_ENTRY_POINT, DEVICE_API_ENTRY_POINT, WEBJARS_ENTRY_POINT));
         SkipPathRequestMatcher matcher = new SkipPathRequestMatcher(pathsToSkip, TOKEN_BASED_AUTH_ENTRY_POINT);
         JwtTokenAuthenticationProcessingFilter filter
-                = new JwtTokenAuthenticationProcessingFilter(failureHandler, jwtHeaderTokenExtractor, matcher);
+                = new JwtTokenAuthenticationProcessingFilter(failureHandler, jwtHeaderTokenExtractor, matcher, userActiveSessionsLimitService);
         filter.setAuthenticationManager(this.authenticationManager);
         return filter;
     }
@@ -153,7 +155,7 @@ public class ThingsboardSecurityConfiguration extends WebSecurityConfigurerAdapt
     protected JwtTokenAuthenticationProcessingFilter buildWsJwtTokenAuthenticationProcessingFilter() throws Exception {
         AntPathRequestMatcher matcher = new AntPathRequestMatcher(WS_TOKEN_BASED_AUTH_ENTRY_POINT);
         JwtTokenAuthenticationProcessingFilter filter
-                = new JwtTokenAuthenticationProcessingFilter(failureHandler, jwtQueryTokenExtractor, matcher);
+                = new JwtTokenAuthenticationProcessingFilter(failureHandler, jwtQueryTokenExtractor, matcher, userActiveSessionsLimitService);
         filter.setAuthenticationManager(this.authenticationManager);
         return filter;
     }
