@@ -19,7 +19,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.channel.EventLoopGroup;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.util.StringUtils;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.common.util.ListeningExecutor;
 import org.thingsboard.rule.engine.api.MailService;
 import org.thingsboard.rule.engine.api.RuleEngineAlarmService;
@@ -51,6 +53,8 @@ import org.thingsboard.server.common.data.id.RuleNodeId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
+import org.thingsboard.server.common.data.relation.EntityRelation;
+import org.thingsboard.server.common.data.relation.EntitySearchDirection;
 import org.thingsboard.server.common.data.rule.RuleNode;
 import org.thingsboard.server.common.data.rule.RuleNodeState;
 import org.thingsboard.server.common.msg.TbActorMsg;
@@ -342,6 +346,47 @@ class DefaultTbContext implements TbContext {
         return entityActionMsg(device, device.getId(), ruleNodeId, DataConstants.ENTITY_CREATED, queueName, ruleChainId);
     }
 
+    @Override
+    public void enqueueEntityRelationEvents(EntityRelation relation, String relationEventType) {
+        EntityId from = relation.getFrom();
+        createAndPushRelationEventMsg(relation, relationEventType, from, EntitySearchDirection.FROM);
+
+        EntityId to = relation.getTo();
+        createAndPushRelationEventMsg(relation, relationEventType, to, EntitySearchDirection.TO);
+    }
+
+    private void createAndPushRelationEventMsg(EntityRelation relation, String relationEventType, EntityId entityId, EntitySearchDirection direction) {
+        String queueName = null;
+        RuleChainId ruleChainId = null;
+
+        if (entityId.getEntityType() == EntityType.DEVICE) {
+            DeviceProfile deviceProfile = getDeviceProfileByDeviceId(new DeviceId(entityId.getId()));
+            queueName = deviceProfile.getDefaultQueueName();
+            ruleChainId = deviceProfile.getDefaultRuleChainId();
+        }
+
+        TbMsgMetaData metaData = createRelationEventMetadata(direction);
+        TbMsg tbMsg = TbMsg.newMsg(queueName, relationEventType, entityId, metaData, JacksonUtil.toString(relation), ruleChainId, null);
+        processEnqueue(tbMsg, relation, relationEventType);
+    }
+
+    @NotNull
+    private TbMsgMetaData createRelationEventMetadata(EntitySearchDirection direction) {
+        TbMsgMetaData metaData = new TbMsgMetaData();
+        metaData.putValue(DataConstants.RELATION_DIRECTION_MSG_ORIGINATOR, direction.name());
+        return metaData;
+    }
+
+    private void processEnqueue(TbMsg tbMsg, EntityRelation relation, String relationEventType) {
+        enqueue(tbMsg,
+                () -> log.trace("[{}] Enqueued message {}!", relationEventType, relation),
+                throwable -> log.warn("[{}] Failed to enqueue message {}", relationEventType, relation, throwable));
+    }
+
+    private DeviceProfile getDeviceProfileByDeviceId(DeviceId deviceId) {
+        return mainCtx.getDeviceProfileCache().get(getTenantId(), deviceId);
+    }
+
     public TbMsg assetCreatedMsg(Asset asset, RuleNodeId ruleNodeId) {
         return entityActionMsg(asset, asset.getId(), ruleNodeId, DataConstants.ENTITY_CREATED);
     }
@@ -351,7 +396,7 @@ class DefaultTbContext implements TbContext {
         String queueName = ServiceQueue.MAIN;
         if (EntityType.DEVICE.equals(alarm.getOriginator().getEntityType())) {
             DeviceId deviceId = new DeviceId(alarm.getOriginator().getId());
-            DeviceProfile deviceProfile = mainCtx.getDeviceProfileCache().get(getTenantId(), deviceId);
+            DeviceProfile deviceProfile = getDeviceProfileByDeviceId(deviceId);
             if (deviceProfile == null) {
                 log.warn("[{}] Device profile is null!", deviceId);
                 ruleChainId = null;

@@ -18,6 +18,7 @@ package org.thingsboard.rule.engine.action;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.CollectionUtils;
 import org.thingsboard.rule.engine.api.RuleNode;
 import org.thingsboard.rule.engine.api.TbContext;
 import org.thingsboard.rule.engine.api.TbNodeConfiguration;
@@ -25,11 +26,9 @@ import org.thingsboard.rule.engine.api.TbNodeException;
 import org.thingsboard.rule.engine.api.util.TbNodeUtils;
 import org.thingsboard.rule.engine.util.EntityContainer;
 import org.thingsboard.server.common.data.plugin.ComponentType;
-import org.thingsboard.server.common.data.relation.EntityRelation;
 import org.thingsboard.server.common.data.relation.RelationTypeGroup;
 import org.thingsboard.server.common.msg.TbMsg;
 
-import java.util.ArrayList;
 import java.util.List;
 
 
@@ -77,14 +76,11 @@ public class TbDeleteRelationNode extends TbAbstractRelationActionNode<TbDeleteR
 
     private ListenableFuture<Boolean> processList(TbContext ctx, TbMsg msg) {
         return Futures.transformAsync(processListSearchDirection(ctx, msg), entityRelations -> {
-            if (entityRelations.isEmpty()) {
+            if (CollectionUtils.isEmpty(entityRelations)) {
                 return Futures.immediateFuture(true);
             } else {
-                List<ListenableFuture<Boolean>> listenableFutureList = new ArrayList<>();
-                for (EntityRelation entityRelation : entityRelations) {
-                    listenableFutureList.add(ctx.getRelationService().deleteRelationAsync(ctx.getTenantId(), entityRelation));
-                }
-                return Futures.transformAsync(Futures.allAsList(listenableFutureList), booleans -> {
+                List<ListenableFuture<Boolean>> list = deleteRelationsAndPushEventMessages(ctx, entityRelations);
+                return Futures.transformAsync(Futures.allAsList(list), booleans -> {
                     for (Boolean bool : booleans) {
                         if (!bool) {
                             return Futures.immediateFuture(false);
@@ -98,10 +94,15 @@ public class TbDeleteRelationNode extends TbAbstractRelationActionNode<TbDeleteR
 
     private ListenableFuture<Boolean> processSingle(TbContext ctx, TbMsg msg, EntityContainer entityContainer, String relationType) {
         SearchDirectionIds sdId = processSingleSearchDirection(msg, entityContainer);
-        return Futures.transformAsync(ctx.getRelationService().checkRelation(ctx.getTenantId(), sdId.getFromId(), sdId.getToId(), relationType, RelationTypeGroup.COMMON),
-                result -> {
-                    if (result) {
-                        return processSingleDeleteRelation(ctx, sdId, relationType);
+        return Futures.transformAsync(ctx.getRelationService().getRelationAsync(ctx.getTenantId(), sdId.getFromId(), sdId.getToId(), relationType, RelationTypeGroup.COMMON),
+                relation -> {
+                    if (relation != null) {
+                        return Futures.transform(processSingleDeleteRelation(ctx, sdId, relationType), res -> {
+                            if (res) {
+                                pushDeleteRelationEventMsg(ctx, relation);
+                            }
+                            return res;
+                        }, ctx.getDbCallbackExecutor());
                     }
                     return Futures.immediateFuture(true);
                 }, ctx.getDbCallbackExecutor());
