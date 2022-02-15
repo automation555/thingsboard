@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -407,10 +407,12 @@ public class BaseAssetService extends AbstractEntityService implements AssetServ
 
                 @Override
                 protected void validateDataImpl(TenantId tenantId, Asset asset) {
-                    if (StringUtils.isEmpty(asset.getType())) {
+                    String type = asset.getType();
+                    if (StringUtils.isEmpty(type) || type.trim().length() == 0) {
                         throw new DataValidationException("Asset type should be specified!");
                     }
-                    if (StringUtils.isEmpty(asset.getName())) {
+                    String name = asset.getName();
+                    if (StringUtils.isEmpty(name) || name.trim().length() == 0) {
                         throw new DataValidationException("Asset name should be specified!");
                     }
                     if (asset.getTenantId() == null) {
