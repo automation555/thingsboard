@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,12 @@
 package org.thingsboard.server.controller.plugin;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.BeanCreationNotAllowedException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.PongMessage;
 import org.springframework.web.socket.TextMessage;
@@ -34,10 +34,10 @@ import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.common.msg.tools.TbRateLimits;
 import org.thingsboard.server.config.WebSocketConfiguration;
+import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.model.UserPrincipal;
-import org.thingsboard.server.service.telemetry.DefaultTelemetryWebSocketService;
 import org.thingsboard.server.service.telemetry.SessionEvent;
 import org.thingsboard.server.service.telemetry.TelemetryWebSocketMsgEndpoint;
 import org.thingsboard.server.service.telemetry.TelemetryWebSocketService;
@@ -67,27 +67,16 @@ public class TbWebSocketHandler extends TextWebSocketHandler implements Telemetr
 
     private static final ConcurrentMap<String, SessionMetaData> internalSessionMap = new ConcurrentHashMap<>();
     private static final ConcurrentMap<String, String> externalSessionMap = new ConcurrentHashMap<>();
-
+    private static final ByteBuffer PING_MSG = ByteBuffer.wrap(new byte[]{});
 
     @Autowired
     private TelemetryWebSocketService webSocketService;
 
+    @Autowired
+    private TbTenantProfileCache tenantProfileCache;
+
     @Value("${server.ws.send_timeout:5000}")
     private long sendTimeout;
-    @Value("${server.ws.limits.max_sessions_per_tenant:0}")
-    private int maxSessionsPerTenant;
-    @Value("${server.ws.limits.max_sessions_per_customer:0}")
-    private int maxSessionsPerCustomer;
-    @Value("${server.ws.limits.max_sessions_per_regular_user:0}")
-    private int maxSessionsPerRegularUser;
-    @Value("${server.ws.limits.max_sessions_per_public_user:0}")
-    private int maxSessionsPerPublicUser;
-    @Value("${server.ws.limits.max_queue_per_ws_session:1000}")
-    private int maxMsgQueuePerSession;
-
-    @Value("${server.ws.limits.max_updates_per_session:}")
-    private String perSessionUpdatesConfiguration;
-
     @Value("${server.ws.ping_timeout:30000}")
     private long pingTimeout;
 
@@ -144,10 +133,13 @@ public class TbWebSocketHandler extends TextWebSocketHandler implements Telemetr
             String internalSessionId = session.getId();
             TelemetryWebSocketSessionRef sessionRef = toRef(session);
             String externalSessionId = sessionRef.getSessionId();
+
             if (!checkLimits(session, sessionRef)) {
                 return;
             }
-            internalSessionMap.put(internalSessionId, new SessionMetaData(session, sessionRef, maxMsgQueuePerSession));
+            var tenantProfileConfiguration = tenantProfileCache.get(sessionRef.getSecurityCtx().getTenantId()).getDefaultProfileConfiguration();
+            internalSessionMap.put(internalSessionId, new SessionMetaData(session, sessionRef, tenantProfileConfiguration.getWsMsgQueueLimitPerSession() > 0 ?
+                    tenantProfileConfiguration.getWsMsgQueueLimitPerSession() : 500));
 
             externalSessionMap.put(externalSessionId, internalSessionId);
             processInWebSocketService(sessionRef, SessionEvent.onEstablished());
@@ -216,7 +208,7 @@ public class TbWebSocketHandler extends TextWebSocketHandler implements Telemetr
         private final TelemetryWebSocketSessionRef sessionRef;
 
         private volatile boolean isSending = false;
-        private final Queue<TbWebSocketMsg<?>> msgQueue;
+        private final Queue<String> msgQueue;
 
         private volatile long lastActivityTime;
 
@@ -237,7 +229,7 @@ public class TbWebSocketHandler extends TextWebSocketHandler implements Telemetr
                     log.warn("[{}] Closing session due to ping timeout", session.getId());
                     closeSession(CloseStatus.SESSION_NOT_RELIABLE);
                 } else if (timeSinceLastActivity >= pingTimeout / NUMBER_OF_PING_ATTEMPTS) {
-                    sendMsg(TbWebSocketPingMsg.INSTANCE);
+                    this.asyncRemote.sendPing(PING_MSG);
                 }
             } catch (Exception e) {
                 log.trace("[{}] Failed to send ping msg", session.getId(), e);
@@ -258,10 +250,6 @@ public class TbWebSocketHandler extends TextWebSocketHandler implements Telemetr
         }
 
         synchronized void sendMsg(String msg) {
-            sendMsg(new TbWebSocketTextMsg(msg));
-        }
-
-        synchronized void sendMsg(TbWebSocketMsg<?> msg) {
             if (isSending) {
                 try {
                     msgQueue.add(msg);
@@ -279,16 +267,9 @@ public class TbWebSocketHandler extends TextWebSocketHandler implements Telemetr
             }
         }
 
-        private void sendMsgInternal(TbWebSocketMsg<?> msg) {
+        private void sendMsgInternal(String msg) {
             try {
-                if (TbWebSocketMsgType.TEXT.equals(msg.getType())) {
-                    TbWebSocketTextMsg textMsg = (TbWebSocketTextMsg) msg;
-                    this.asyncRemote.sendText(textMsg.getMsg(), this);
-                } else {
-                    TbWebSocketPingMsg pingMsg = (TbWebSocketPingMsg) msg;
-                    this.asyncRemote.sendPing(pingMsg.getMsg());
-                    processNextMsg();
-                }
+                this.asyncRemote.sendText(msg, this);
             } catch (Exception e) {
                 log.trace("[{}] Failed to send msg", session.getId(), e);
                 closeSession(CloseStatus.SESSION_NOT_RELIABLE);
@@ -301,16 +282,12 @@ public class TbWebSocketHandler extends TextWebSocketHandler implements Telemetr
                 log.trace("[{}] Failed to send msg", session.getId(), result.getException());
                 closeSession(CloseStatus.SESSION_NOT_RELIABLE);
             } else {
-                processNextMsg();
-            }
-        }
-
-        private void processNextMsg() {
-            TbWebSocketMsg<?> msg = msgQueue.poll();
-            if (msg != null) {
-                sendMsgInternal(msg);
-            } else {
-                isSending = false;
+                String msg = msgQueue.poll();
+                if (msg != null) {
+                    sendMsgInternal(msg);
+                } else {
+                    isSending = false;
+                }
             }
         }
     }
@@ -323,8 +300,9 @@ public class TbWebSocketHandler extends TextWebSocketHandler implements Telemetr
         if (internalId != null) {
             SessionMetaData sessionMd = internalSessionMap.get(internalId);
             if (sessionMd != null) {
-                if (!StringUtils.isEmpty(perSessionUpdatesConfiguration)) {
-                    TbRateLimits rateLimits = perSessionUpdateLimits.computeIfAbsent(sessionRef.getSessionId(), sid -> new TbRateLimits(perSessionUpdatesConfiguration));
+                var tenantProfileConfiguration = tenantProfileCache.get(sessionRef.getSecurityCtx().getTenantId()).getDefaultProfileConfiguration();
+                if (StringUtils.isNotEmpty(tenantProfileConfiguration.getWsUpdatesPerSessionRateLimit())) {
+                    TbRateLimits rateLimits = perSessionUpdateLimits.computeIfAbsent(sessionRef.getSessionId(), sid -> new TbRateLimits(tenantProfileConfiguration.getWsUpdatesPerSessionRateLimit()));
                     if (!rateLimits.tryConsume()) {
                         if (blacklistedSessions.putIfAbsent(externalId, sessionRef) == null) {
                             log.info("[{}][{}][{}] Failed to process session update. Max session updates limit reached"
@@ -336,6 +314,8 @@ public class TbWebSocketHandler extends TextWebSocketHandler implements Telemetr
                         log.debug("[{}][{}][{}] Session is no longer blacklisted.", sessionRef.getSecurityCtx().getTenantId(), sessionRef.getSecurityCtx().getId(), externalId);
                         blacklistedSessions.remove(externalId);
                     }
+                } else {
+                    perSessionUpdateLimits.remove(sessionRef.getSessionId());
                 }
                 sessionMd.sendMsg(msg);
             } else {
@@ -380,11 +360,17 @@ public class TbWebSocketHandler extends TextWebSocketHandler implements Telemetr
     }
 
     private boolean checkLimits(WebSocketSession session, TelemetryWebSocketSessionRef sessionRef) throws Exception {
+        var tenantProfileConfiguration =
+                tenantProfileCache.get(sessionRef.getSecurityCtx().getTenantId()).getDefaultProfileConfiguration();
+        if (tenantProfileConfiguration == null) {
+            return true;
+        }
+
         String sessionId = session.getId();
-        if (maxSessionsPerTenant > 0) {
+        if (tenantProfileConfiguration.getMaxWsSessionsPerTenant() > 0) {
             Set<String> tenantSessions = tenantSessionsMap.computeIfAbsent(sessionRef.getSecurityCtx().getTenantId(), id -> ConcurrentHashMap.newKeySet());
             synchronized (tenantSessions) {
-                if (tenantSessions.size() < maxSessionsPerTenant) {
+                if (tenantSessions.size() < tenantProfileConfiguration.getMaxWsSessionsPerTenant()) {
                     tenantSessions.add(sessionId);
                 } else {
                     log.info("[{}][{}][{}] Failed to start session. Max tenant sessions limit reached"
@@ -396,10 +382,10 @@ public class TbWebSocketHandler extends TextWebSocketHandler implements Telemetr
         }
 
         if (sessionRef.getSecurityCtx().isCustomerUser()) {
-            if (maxSessionsPerCustomer > 0) {
+            if (tenantProfileConfiguration.getMaxWsSessionsPerCustomer() > 0) {
                 Set<String> customerSessions = customerSessionsMap.computeIfAbsent(sessionRef.getSecurityCtx().getCustomerId(), id -> ConcurrentHashMap.newKeySet());
                 synchronized (customerSessions) {
-                    if (customerSessions.size() < maxSessionsPerCustomer) {
+                    if (customerSessions.size() < tenantProfileConfiguration.getMaxWsSessionsPerCustomer()) {
                         customerSessions.add(sessionId);
                     } else {
                         log.info("[{}][{}][{}] Failed to start session. Max customer sessions limit reached"
@@ -409,10 +395,11 @@ public class TbWebSocketHandler extends TextWebSocketHandler implements Telemetr
                     }
                 }
             }
-            if (maxSessionsPerRegularUser > 0 && UserPrincipal.Type.USER_NAME.equals(sessionRef.getSecurityCtx().getUserPrincipal().getType())) {
+            if (tenantProfileConfiguration.getMaxWsSessionsPerRegularUser() > 0
+                    && UserPrincipal.Type.USER_NAME.equals(sessionRef.getSecurityCtx().getUserPrincipal().getType())) {
                 Set<String> regularUserSessions = regularUserSessionsMap.computeIfAbsent(sessionRef.getSecurityCtx().getId(), id -> ConcurrentHashMap.newKeySet());
                 synchronized (regularUserSessions) {
-                    if (regularUserSessions.size() < maxSessionsPerRegularUser) {
+                    if (regularUserSessions.size() < tenantProfileConfiguration.getMaxWsSessionsPerRegularUser()) {
                         regularUserSessions.add(sessionId);
                     } else {
                         log.info("[{}][{}][{}] Failed to start session. Max regular user sessions limit reached"
@@ -422,10 +409,11 @@ public class TbWebSocketHandler extends TextWebSocketHandler implements Telemetr
                     }
                 }
             }
-            if (maxSessionsPerPublicUser > 0 && UserPrincipal.Type.PUBLIC_ID.equals(sessionRef.getSecurityCtx().getUserPrincipal().getType())) {
+            if (tenantProfileConfiguration.getMaxWsSessionsPerPublicUser() > 0
+                    && UserPrincipal.Type.PUBLIC_ID.equals(sessionRef.getSecurityCtx().getUserPrincipal().getType())) {
                 Set<String> publicUserSessions = publicUserSessionsMap.computeIfAbsent(sessionRef.getSecurityCtx().getId(), id -> ConcurrentHashMap.newKeySet());
                 synchronized (publicUserSessions) {
-                    if (publicUserSessions.size() < maxSessionsPerPublicUser) {
+                    if (publicUserSessions.size() < tenantProfileConfiguration.getMaxWsSessionsPerPublicUser()) {
                         publicUserSessions.add(sessionId);
                     } else {
                         log.info("[{}][{}][{}] Failed to start session. Max public user sessions limit reached"
@@ -440,29 +428,31 @@ public class TbWebSocketHandler extends TextWebSocketHandler implements Telemetr
     }
 
     private void cleanupLimits(WebSocketSession session, TelemetryWebSocketSessionRef sessionRef) {
+        var tenantProfileConfiguration = tenantProfileCache.get(sessionRef.getSecurityCtx().getTenantId()).getDefaultProfileConfiguration();
+
         String sessionId = session.getId();
         perSessionUpdateLimits.remove(sessionRef.getSessionId());
         blacklistedSessions.remove(sessionRef.getSessionId());
-        if (maxSessionsPerTenant > 0) {
+        if (tenantProfileConfiguration.getMaxWsSessionsPerTenant() > 0) {
             Set<String> tenantSessions = tenantSessionsMap.computeIfAbsent(sessionRef.getSecurityCtx().getTenantId(), id -> ConcurrentHashMap.newKeySet());
             synchronized (tenantSessions) {
                 tenantSessions.remove(sessionId);
             }
         }
         if (sessionRef.getSecurityCtx().isCustomerUser()) {
-            if (maxSessionsPerCustomer > 0) {
+            if (tenantProfileConfiguration.getMaxWsSessionsPerCustomer() > 0) {
                 Set<String> customerSessions = customerSessionsMap.computeIfAbsent(sessionRef.getSecurityCtx().getCustomerId(), id -> ConcurrentHashMap.newKeySet());
                 synchronized (customerSessions) {
                     customerSessions.remove(sessionId);
                 }
             }
-            if (maxSessionsPerRegularUser > 0 && UserPrincipal.Type.USER_NAME.equals(sessionRef.getSecurityCtx().getUserPrincipal().getType())) {
+            if (tenantProfileConfiguration.getMaxWsSessionsPerRegularUser() > 0 && UserPrincipal.Type.USER_NAME.equals(sessionRef.getSecurityCtx().getUserPrincipal().getType())) {
                 Set<String> regularUserSessions = regularUserSessionsMap.computeIfAbsent(sessionRef.getSecurityCtx().getId(), id -> ConcurrentHashMap.newKeySet());
                 synchronized (regularUserSessions) {
                     regularUserSessions.remove(sessionId);
                 }
             }
-            if (maxSessionsPerPublicUser > 0 && UserPrincipal.Type.PUBLIC_ID.equals(sessionRef.getSecurityCtx().getUserPrincipal().getType())) {
+            if (tenantProfileConfiguration.getMaxWsSessionsPerPublicUser() > 0 && UserPrincipal.Type.PUBLIC_ID.equals(sessionRef.getSecurityCtx().getUserPrincipal().getType())) {
                 Set<String> publicUserSessions = publicUserSessionsMap.computeIfAbsent(sessionRef.getSecurityCtx().getId(), id -> ConcurrentHashMap.newKeySet());
                 synchronized (publicUserSessions) {
                     publicUserSessions.remove(sessionId);

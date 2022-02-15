@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,12 +55,9 @@ import org.thingsboard.server.common.data.rule.RuleChainType;
 import org.thingsboard.server.common.data.rule.RuleNode;
 import org.thingsboard.server.dao.DaoUtil;
 import org.thingsboard.server.dao.alarm.AlarmDao;
-import org.thingsboard.server.dao.alarm.AlarmService;
 import org.thingsboard.server.dao.entity.EntityService;
 import org.thingsboard.server.dao.entityview.EntityViewService;
 import org.thingsboard.server.dao.model.sql.DeviceProfileEntity;
-import org.thingsboard.server.dao.model.sql.RelationEntity;
-import org.thingsboard.server.dao.oauth2.OAuth2Service;
 import org.thingsboard.server.dao.relation.RelationService;
 import org.thingsboard.server.dao.rule.RuleChainService;
 import org.thingsboard.server.dao.sql.device.DeviceProfileRepository;
@@ -101,9 +98,6 @@ public class DefaultDataUpdateService implements DataUpdateService {
     private TimeseriesService tsService;
 
     @Autowired
-    private AlarmService alarmService;
-
-    @Autowired
     private EntityService entityService;
 
     @Autowired
@@ -113,7 +107,7 @@ public class DefaultDataUpdateService implements DataUpdateService {
     private DeviceProfileRepository deviceProfileRepository;
 
     @Autowired
-    private OAuth2Service oAuth2Service;
+    private RateLimitsUpdater rateLimitsUpdater;
 
     @Override
     public void updateData(String fromVersion) throws Exception {
@@ -140,6 +134,10 @@ public class DefaultDataUpdateService implements DataUpdateService {
             case "3.3.2":
                 log.info("Updating data from version 3.3.2 to 3.3.3 ...");
                 updateNestedRuleChains();
+                break;
+            case "3.3.3":
+                log.info("Updating data from version 3.3.3 to 3.4 ...");
+                rateLimitsUpdater.updateEntities();
                 break;
             default:
                 throw new RuntimeException("Unable to update data, unsupported fromVersion: " + fromVersion);

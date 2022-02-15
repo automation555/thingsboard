@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,7 +83,7 @@ public class TenantProfile extends SearchTextBased<TenantProfileId> implements H
     @ApiModelProperty(position = 1, value = "JSON object with the tenant profile Id. " +
             "Specify this field to update the tenant profile. " +
             "Referencing non-existing tenant profile Id will cause error. " +
-            "Omit this field to create new tenant profile." )
+            "Omit this field to create new tenant profile.")
     @Override
     public TenantProfileId getId() {
         return super.getId();
@@ -130,9 +130,15 @@ public class TenantProfile extends SearchTextBased<TenantProfileId> implements H
                 .map(profileConfiguration -> (DefaultTenantProfileConfiguration) profileConfiguration);
     }
 
+    @JsonIgnore
+    public DefaultTenantProfileConfiguration getDefaultProfileConfiguration() {
+        return getProfileConfiguration().orElse(null);
+    }
+
     public TenantProfileData createDefaultTenantProfileData() {
         TenantProfileData tpd = new TenantProfileData();
         tpd.setConfiguration(new DefaultTenantProfileConfiguration());
+        this.profileData = tpd;
         return tpd;
     }
 
