@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright © 2016-2022 The Thingsboard Authors
+# Copyright © 2016-2021 The Thingsboard Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,14 +22,22 @@ PG_CTL=$(find /usr/lib/postgresql/ -name pg_ctl)
 if [ ! -d ${PGDATA} ]; then
     mkdir -p ${PGDATA}
     ${PG_CTL} initdb
+else
+    ${PG_CTL} start
 fi
 
 exec setsid nohup postgres >> ${PGLOG}/postgres.log 2>&1 &
 
 if [ ! -f ${firstlaunch} ]; then
     sleep 2
-    while ! psql -U ${pkg.user} -d postgres -c "CREATE DATABASE thingsboard"
+    while ! psql -U thingsboard -d postgres -c "CREATE DATABASE thingsboard"
     do
       sleep 1
+    done
+else
+    until pg_isready --dbname thingsboard --quiet
+    do
+        sleep 1
+        echo "Waiting for db"
     done
 fi
