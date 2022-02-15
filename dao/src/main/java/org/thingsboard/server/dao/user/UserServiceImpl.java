@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ import org.springframework.stereotype.Service;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.EntityType;
-import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -51,7 +50,7 @@ import org.thingsboard.server.dao.model.ModelConstants;
 import org.thingsboard.server.dao.service.DataValidator;
 import org.thingsboard.server.dao.service.PaginatedRemover;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
-import org.thingsboard.server.dao.tenant.TenantDao;
+import org.thingsboard.server.dao.tenant.TenantService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -80,20 +79,20 @@ public class UserServiceImpl extends AbstractEntityService implements UserServic
 
     private final UserDao userDao;
     private final UserCredentialsDao userCredentialsDao;
-    private final TenantDao tenantDao;
+    private final TenantService tenantService;
     private final CustomerDao customerDao;
     private final TbTenantProfileCache tenantProfileCache;
     private final ApplicationEventPublisher eventPublisher;
 
     public UserServiceImpl(UserDao userDao,
                            UserCredentialsDao userCredentialsDao,
-                           TenantDao tenantDao,
+                           @Lazy TenantService tenantService,
                            CustomerDao customerDao,
                            @Lazy TbTenantProfileCache tenantProfileCache,
                            ApplicationEventPublisher eventPublisher) {
         this.userDao = userDao;
         this.userCredentialsDao = userCredentialsDao;
-        this.tenantDao = tenantDao;
+        this.tenantService = tenantService;
         this.customerDao = customerDao;
         this.tenantProfileCache = tenantProfileCache;
         this.eventPublisher = eventPublisher;
@@ -409,7 +408,7 @@ public class UserServiceImpl extends AbstractEntityService implements UserServic
                     }
                     TenantId tenantId = user.getTenantId();
                     if (tenantId == null) {
-                        tenantId = TenantId.fromUUID(ModelConstants.NULL_UUID);
+                        tenantId = new TenantId(ModelConstants.NULL_UUID);
                         user.setTenantId(tenantId);
                     }
                     CustomerId customerId = user.getCustomerId();
@@ -448,8 +447,7 @@ public class UserServiceImpl extends AbstractEntityService implements UserServic
                                 + " already present in database!");
                     }
                     if (!tenantId.getId().equals(ModelConstants.NULL_UUID)) {
-                        Tenant tenant = tenantDao.findById(tenantId, user.getTenantId().getId());
-                        if (tenant == null) {
+                        if (!tenantService.tenantExists(user.getTenantId())) {
                             throw new DataValidationException("User is referencing to non-existent tenant!");
                         }
                     }

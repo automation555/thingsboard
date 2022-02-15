@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ import org.thingsboard.server.common.data.DeviceProfile;
 import org.thingsboard.server.common.data.OtaPackage;
 import org.thingsboard.server.common.data.OtaPackageInfo;
 import org.thingsboard.server.common.data.StringUtils;
-import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.id.DeviceProfileId;
 import org.thingsboard.server.common.data.id.OtaPackageId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -46,7 +45,7 @@ import org.thingsboard.server.dao.exception.DataValidationException;
 import org.thingsboard.server.dao.service.DataValidator;
 import org.thingsboard.server.dao.service.PaginatedRemover;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
-import org.thingsboard.server.dao.tenant.TenantDao;
+import org.thingsboard.server.dao.tenant.TenantService;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -66,7 +65,7 @@ public class BaseOtaPackageService implements OtaPackageService {
     public static final String INCORRECT_OTA_PACKAGE_ID = "Incorrect otaPackageId ";
     public static final String INCORRECT_TENANT_ID = "Incorrect tenantId ";
 
-    private final TenantDao tenantDao;
+    private final TenantService tenantService;
     private final DeviceProfileDao deviceProfileDao;
     private final OtaPackageDao otaPackageDao;
     private final OtaPackageInfoDao otaPackageInfoDao;
@@ -357,8 +356,7 @@ public class BaseOtaPackageService implements OtaPackageService {
         if (otaPackageInfo.getTenantId() == null) {
             throw new DataValidationException("OtaPackage should be assigned to tenant!");
         } else {
-            Tenant tenant = tenantDao.findById(otaPackageInfo.getTenantId(), otaPackageInfo.getTenantId().getId());
-            if (tenant == null) {
+            if (!tenantService.tenantExists(otaPackageInfo.getTenantId())) {
                 throw new DataValidationException("OtaPackage is referencing to non-existent tenant!");
             }
         }

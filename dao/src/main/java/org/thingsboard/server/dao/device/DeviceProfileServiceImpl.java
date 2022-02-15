@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,7 +45,6 @@ import org.thingsboard.server.common.data.DeviceProfileProvisionType;
 import org.thingsboard.server.common.data.DeviceProfileType;
 import org.thingsboard.server.common.data.DeviceTransportType;
 import org.thingsboard.server.common.data.OtaPackage;
-import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.device.credentials.lwm2m.LwM2MSecurityMode;
 import org.thingsboard.server.common.data.device.profile.CoapDeviceProfileTransportConfiguration;
 import org.thingsboard.server.common.data.device.profile.CoapDeviceTypeConfiguration;
@@ -81,7 +80,7 @@ import org.thingsboard.server.dao.rule.RuleChainService;
 import org.thingsboard.server.dao.service.DataValidator;
 import org.thingsboard.server.dao.service.PaginatedRemover;
 import org.thingsboard.server.dao.service.Validator;
-import org.thingsboard.server.dao.tenant.TenantDao;
+import org.thingsboard.server.dao.tenant.TenantService;
 import org.thingsboard.server.queue.QueueService;
 
 import java.util.Arrays;
@@ -127,7 +126,7 @@ public class DeviceProfileServiceImpl extends AbstractEntityService implements D
     private DeviceService deviceService;
 
     @Autowired
-    private TenantDao tenantDao;
+    private TenantService tenantService;
 
     @Autowired
     private CacheManager cacheManager;
@@ -375,8 +374,7 @@ public class DeviceProfileServiceImpl extends AbstractEntityService implements D
                     if (deviceProfile.getTenantId() == null) {
                         throw new DataValidationException("Device profile should be assigned to tenant!");
                     } else {
-                        Tenant tenant = tenantDao.findById(deviceProfile.getTenantId(), deviceProfile.getTenantId().getId());
-                        if (tenant == null) {
+                        if (!tenantService.tenantExists(deviceProfile.getTenantId())) {
                             throw new DataValidationException("Device profile is referencing to non-existent tenant!");
                         }
                     }
@@ -420,12 +418,10 @@ public class DeviceProfileServiceImpl extends AbstractEntityService implements D
                         }
                     } else if (transportConfiguration instanceof Lwm2mDeviceProfileTransportConfiguration) {
                         List<LwM2MBootstrapServerCredential> lwM2MBootstrapServersConfigurations = ((Lwm2mDeviceProfileTransportConfiguration) transportConfiguration).getBootstrap();
-                        if (lwM2MBootstrapServersConfigurations != null) {
-                            validateLwm2mServersConfigOfBootstrapForClient(lwM2MBootstrapServersConfigurations,
-                                    ((Lwm2mDeviceProfileTransportConfiguration) transportConfiguration).isBootstrapServerUpdateEnable());
-                            for (LwM2MBootstrapServerCredential bootstrapServerCredential : lwM2MBootstrapServersConfigurations) {
-                                validateLwm2mServersCredentialOfBootstrapForClient(bootstrapServerCredential);
-                            }
+                        validateLwm2mServersConfigOfBootstrapForClient(lwM2MBootstrapServersConfigurations,
+                                ((Lwm2mDeviceProfileTransportConfiguration) transportConfiguration).isBootstrapServerUpdateEnable());
+                        for (LwM2MBootstrapServerCredential bootstrapServerCredential : lwM2MBootstrapServersConfigurations) {
+                            validateLwm2mServersCredentialOfBootstrapForClient(bootstrapServerCredential);
                         }
                     }
 
@@ -711,32 +707,34 @@ public class DeviceProfileServiceImpl extends AbstractEntityService implements D
     }
 
     private void validateLwm2mServersConfigOfBootstrapForClient(List<LwM2MBootstrapServerCredential> lwM2MBootstrapServersConfigurations, boolean isBootstrapServerUpdateEnable) {
-        Set<String> uris = new HashSet<>();
-        Set<Integer> shortServerIds = new HashSet<>();
+        Set <String> uris = new HashSet<>();
+        Set <Integer> shortServerIds = new HashSet<>();
         for (LwM2MBootstrapServerCredential bootstrapServerCredential : lwM2MBootstrapServersConfigurations) {
             AbstractLwM2MBootstrapServerCredential serverConfig = (AbstractLwM2MBootstrapServerCredential) bootstrapServerCredential;
             if (!isBootstrapServerUpdateEnable && serverConfig.isBootstrapServerIs()) {
-                throw new DeviceCredentialsValidationException("Bootstrap config must not include \"Bootstrap Server\". \"Include Bootstrap Server updates\" is " + isBootstrapServerUpdateEnable + ".");
+                throw new DeviceCredentialsValidationException("Bootstrap config must not include \"Bootstrap Server\". \"Include Bootstrap Server updates\" is " + isBootstrapServerUpdateEnable + "." );
             }
             String server = serverConfig.isBootstrapServerIs() ? "Bootstrap Server" : "LwM2M Server" + " shortServerId: " + serverConfig.getShortServerId() + ":";
             if (serverConfig.getShortServerId() < 1 || serverConfig.getShortServerId() > 65534) {
                 throw new DeviceCredentialsValidationException(server + " ShortServerId must not be less than 1 and more than 65534!");
             }
-            if (!shortServerIds.add(serverConfig.getShortServerId())) {
-                throw new DeviceCredentialsValidationException(server + " \"Short server Id\" value = " + serverConfig.getShortServerId() + ". This value must be a unique value for all servers!");
-            }
+            if (!shortServerIds.add(serverConfig.getShortServerId())){
+                throw new DeviceCredentialsValidationException(server + " \"Short server Id\" value = "  + serverConfig.getShortServerId() + ". This value must be a unique value for all servers!");
+            };
             String uri = serverConfig.getHost() + ":" + serverConfig.getPort();
-            if (!uris.add(uri)) {
-                throw new DeviceCredentialsValidationException(server + " \"Host + port\" value = " + uri + ". This value must be a unique value for all servers!");
-            }
+            if (!uris.add(uri)){
+                throw new DeviceCredentialsValidationException(server + " \"Host + port\" value = "  + uri + ". This value must be a unique value for all servers!");
+            };
             Integer port;
             if (LwM2MSecurityMode.NO_SEC.equals(serverConfig.getSecurityMode())) {
-                port = serverConfig.isBootstrapServerIs() ? 5687 : 5685;
-            } else {
-                port = serverConfig.isBootstrapServerIs() ? 5688 : 5686;
+               port =  serverConfig.isBootstrapServerIs() ? 5687 : 5685;
+            }
+            else {
+                port =  serverConfig.isBootstrapServerIs() ? 5688 : 5686;
             }
             if (serverConfig.getPort() == null || serverConfig.getPort().intValue() != port) {
-                throw new DeviceCredentialsValidationException(server + " \"Port\" value = " + serverConfig.getPort() + ". This value for security " + serverConfig.getSecurityMode().name() + " must be " + port + "!");
+                throw new DeviceCredentialsValidationException(server + " \"Port\" value = "  + serverConfig.getPort() + ". This value for security " + serverConfig.getSecurityMode().name() + " must be " + port + "!");
+
             }
         }
     }
@@ -765,15 +763,15 @@ public class DeviceProfileServiceImpl extends AbstractEntityService implements D
                 X509LwM2MBootstrapServerCredential x509ServerCredentials = (X509LwM2MBootstrapServerCredential) bootstrapServerConfig;
                 server = x509ServerCredentials.isBootstrapServerIs() ? "Bootstrap Server" : "LwM2M Server";
                 if (StringUtils.isEmpty(x509ServerCredentials.getServerPublicKey())) {
-                    throw new DeviceCredentialsValidationException(server + " X509 certificate must be specified!");
+                    throw new DeviceCredentialsValidationException(server + " X509 public key must be specified!");
                 }
 
                 try {
                     String certServer = EncryptionUtil.certTrimNewLines(x509ServerCredentials.getServerPublicKey());
                     x509ServerCredentials.setServerPublicKey(certServer);
-                    SecurityUtil.certificate.decode(x509ServerCredentials.getDecodedCServerPublicKey());
+                    SecurityUtil.publicKey.decode(x509ServerCredentials.getDecodedCServerPublicKey());
                 } catch (Exception e) {
-                    throw new DeviceCredentialsValidationException(server + " X509 certificate must be in DER-encoded X509v3 format and support only EC algorithm and then encoded to Base64 format!");
+                    throw new DeviceCredentialsValidationException(server + " X509 public key must be in standard [RFC7250] and then encoded to Base64 format!");
                 }
                 break;
         }
