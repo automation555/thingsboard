@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ import org.thingsboard.server.dao.ota.OtaPackageService;
 import org.thingsboard.server.dao.service.DataValidator;
 import org.thingsboard.server.dao.service.PaginatedRemover;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
-import org.thingsboard.server.dao.tenant.TenantDao;
+import org.thingsboard.server.dao.tenant.TenantService;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -117,7 +117,7 @@ public class DeviceServiceImpl extends AbstractEntityService implements DeviceSe
     private DeviceDao deviceDao;
 
     @Autowired
-    private TenantDao tenantDao;
+    private TenantService tenantService;
 
     @Autowired
     private CustomerDao customerDao;
@@ -344,14 +344,9 @@ public class DeviceServiceImpl extends AbstractEntityService implements DeviceSe
 
         Device device = deviceDao.findById(tenantId, deviceId.getId());
         final String deviceName = device.getName();
-        try {
-            List<EntityView> entityViews = entityViewService.findEntityViewsByTenantIdAndEntityIdAsync(device.getTenantId(), deviceId).get();
-            if (entityViews != null && !entityViews.isEmpty()) {
-                throw new DataValidationException("Can't delete device that has entity views!");
-            }
-        } catch (ExecutionException | InterruptedException e) {
-            log.error("Exception while finding entity views for deviceId [{}]", deviceId, e);
-            throw new RuntimeException("Exception while finding entity views for deviceId [" + deviceId + "]", e);
+        List<EntityView> entityViews = entityViewService.findEntityViewsByTenantIdAndEntityId(device.getTenantId(), deviceId);
+        if (entityViews != null && !entityViews.isEmpty()) {
+            throw new DataValidationException("Can't delete device that has entity views!");
         }
 
         DeviceCredentials deviceCredentials = deviceCredentialsService.findDeviceCredentialsByDeviceId(tenantId, deviceId);
@@ -568,14 +563,9 @@ public class DeviceServiceImpl extends AbstractEntityService implements DeviceSe
     public Device assignDeviceToTenant(TenantId tenantId, Device device) {
         log.trace("Executing assignDeviceToTenant [{}][{}]", tenantId, device);
 
-        try {
-            List<EntityView> entityViews = entityViewService.findEntityViewsByTenantIdAndEntityIdAsync(device.getTenantId(), device.getId()).get();
-            if (!CollectionUtils.isEmpty(entityViews)) {
-                throw new DataValidationException("Can't assign device that has entity views to another tenant!");
-            }
-        } catch (ExecutionException | InterruptedException e) {
-            log.error("Exception while finding entity views for deviceId [{}]", device.getId(), e);
-            throw new RuntimeException("Exception while finding entity views for deviceId [" + device.getId() + "]", e);
+        List<EntityView> entityViews = entityViewService.findEntityViewsByTenantIdAndEntityId(device.getTenantId(), device.getId());
+        if (!CollectionUtils.isEmpty(entityViews)) {
+            throw new DataValidationException("Can't assign device that has entity views to another tenant!");
         }
 
         eventService.removeEvents(device.getTenantId(), device.getId());
@@ -741,7 +731,7 @@ public class DeviceServiceImpl extends AbstractEntityService implements DeviceSe
                     if (device.getTenantId() == null) {
                         throw new DataValidationException("Device should be assigned to tenant!");
                     } else {
-                        Tenant tenant = tenantDao.findById(device.getTenantId(), device.getTenantId().getId());
+                        Tenant tenant = tenantService.findTenantById(device.getTenantId());
                         if (tenant == null) {
                             throw new DataValidationException("Device is referencing to non-existent tenant!");
                         }

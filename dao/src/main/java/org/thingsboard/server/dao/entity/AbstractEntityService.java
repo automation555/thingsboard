@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ public abstract class AbstractEntityService {
     public static final String INCORRECT_EDGE_ID = "Incorrect edgeId ";
     public static final String INCORRECT_PAGE_LINK = "Incorrect page link ";
 
+    @Lazy
     @Autowired
     protected RelationService relationService;
 
@@ -81,20 +82,16 @@ public abstract class AbstractEntityService {
     }
 
     protected void checkAssignedEntityViewsToEdge(TenantId tenantId, EntityId entityId, EdgeId edgeId) {
-        try {
-            List<EntityView> entityViews = entityViewService.findEntityViewsByTenantIdAndEntityIdAsync(tenantId, entityId).get();
-            if (entityViews != null && !entityViews.isEmpty()) {
-                EntityView entityView = entityViews.get(0);
-                // TODO: @voba - refactor this blocking operation
-                Boolean relationExists = relationService.checkRelation(tenantId, edgeId, entityView.getId(),
-                        EntityRelation.CONTAINS_TYPE, RelationTypeGroup.EDGE).get();
-                if (relationExists) {
-                    throw new DataValidationException("Can't unassign device/asset from edge that is related to entity view and entity view is assigned to edge!");
-                }
+        List<EntityView> entityViews = entityViewService.findEntityViewsByTenantIdAndEntityId(tenantId, entityId);
+        if (entityViews != null && !entityViews.isEmpty()) {
+            EntityView entityView = entityViews.get(0);
+            Boolean relationExists = relationService.checkRelation(
+                    tenantId, edgeId, entityView.getId(),
+                    EntityRelation.CONTAINS_TYPE, RelationTypeGroup.EDGE
+            );
+            if (relationExists) {
+                throw new DataValidationException("Can't unassign device/asset from edge that is related to entity view and entity view is assigned to edge!");
             }
-        } catch (Exception e) {
-            log.error("[{}] Exception while finding entity views for entityId [{}]", tenantId, entityId, e);
-            throw new RuntimeException("Exception while finding entity views for entityId [" + entityId + "]", e);
         }
     }
 

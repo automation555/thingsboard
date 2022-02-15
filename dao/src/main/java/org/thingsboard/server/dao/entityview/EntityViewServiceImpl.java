@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ import org.thingsboard.server.dao.entity.AbstractEntityService;
 import org.thingsboard.server.dao.exception.DataValidationException;
 import org.thingsboard.server.dao.service.DataValidator;
 import org.thingsboard.server.dao.service.PaginatedRemover;
-import org.thingsboard.server.dao.tenant.TenantDao;
+import org.thingsboard.server.dao.tenant.TenantService;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -87,7 +87,7 @@ public class EntityViewServiceImpl extends AbstractEntityService implements Enti
     private EntityViewDao entityViewDao;
 
     @Autowired
-    private TenantDao tenantDao;
+    private TenantService tenantService;
 
     @Autowired
     private CustomerDao customerDao;
@@ -302,6 +302,25 @@ public class EntityViewServiceImpl extends AbstractEntityService implements Enti
         }
     }
 
+    @Override
+    public List<EntityView> findEntityViewsByTenantIdAndEntityId(TenantId tenantId, EntityId entityId) {
+        log.trace("Executing findEntityViewsByTenantIdAndEntityId, tenantId [{}], entityId [{}]", tenantId, entityId);
+        validateId(tenantId, INCORRECT_TENANT_ID + tenantId);
+        validateId(entityId.getId(), "Incorrect entityId" + entityId);
+
+        List<Object> tenantIdAndEntityId = List.of(tenantId, entityId);
+
+        Cache cache = cacheManager.getCache(ENTITY_VIEW_CACHE);
+        List<EntityView> fromCache = cache.get(tenantIdAndEntityId, List.class);
+        if (fromCache != null) {
+            return fromCache;
+        } else {
+            List<EntityView> result = entityViewDao.findEntityViewsByTenantIdAndEntityId(tenantId.getId(), entityId.getId());
+            cache.putIfAbsent(tenantIdAndEntityId, result);
+            return result;
+        }
+    }
+
     @CacheEvict(cacheNames = ENTITY_VIEW_CACHE, key = "{#entityViewId}")
     @Override
     public void deleteEntityView(TenantId tenantId, EntityViewId entityViewId) {
@@ -345,15 +364,10 @@ public class EntityViewServiceImpl extends AbstractEntityService implements Enti
             throw new DataValidationException("Can't assign entityView to edge from different tenant!");
         }
 
-        try {
-            Boolean relationExists = relationService.checkRelation(tenantId, edgeId, entityView.getEntityId(),
-                    EntityRelation.CONTAINS_TYPE, RelationTypeGroup.EDGE).get();
-            if (!relationExists) {
-                throw new DataValidationException("Can't assign entity view to edge because related device/asset doesn't assigned to edge!");
-            }
-        } catch (ExecutionException | InterruptedException e) {
-            log.error("Exception during relation check", e);
-            throw new RuntimeException("Exception during relation check", e);
+        Boolean relationExists = relationService.checkRelation(tenantId, edgeId, entityView.getEntityId(),
+                EntityRelation.CONTAINS_TYPE, RelationTypeGroup.EDGE);
+        if (!relationExists) {
+            throw new DataValidationException("Can't assign entity view to edge because related device/asset doesn't assigned to edge!");
         }
 
         try {
@@ -432,7 +446,7 @@ public class EntityViewServiceImpl extends AbstractEntityService implements Enti
                     if (entityView.getTenantId() == null) {
                         throw new DataValidationException("Entity view should be assigned to tenant!");
                     } else {
-                        Tenant tenant = tenantDao.findById(tenantId, entityView.getTenantId().getId());
+                        Tenant tenant = tenantService.findTenantById(entityView.getTenantId());
                         if (tenant == null) {
                             throw new DataValidationException("Entity view is referencing to non-existent tenant!");
                         }
