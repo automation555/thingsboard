@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.edge.EdgeEventActionType;
 import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
@@ -38,9 +39,11 @@ import org.thingsboard.server.common.data.relation.EntityRelationInfo;
 import org.thingsboard.server.common.data.relation.EntityRelationsQuery;
 import org.thingsboard.server.common.data.relation.RelationTypeGroup;
 import org.thingsboard.server.queue.util.TbCoreComponent;
+import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.permission.Operation;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.thingsboard.server.controller.ControllerConstants.ENTITY_ID_PARAM_DESCRIPTION;
@@ -79,8 +82,9 @@ public class EntityRelationController extends BaseController {
                              @RequestBody EntityRelation relation) throws ThingsboardException {
         try {
             checkNotNull(relation);
-            checkEntityId(relation.getFrom(), Operation.WRITE);
-            checkEntityId(relation.getTo(), Operation.WRITE);
+            checkCanCreateRelation(relation.getFrom());
+            checkCanCreateRelation(relation.getTo());
+
             if (relation.getTypeGroup() == null) {
                 relation.setTypeGroup(RelationTypeGroup.COMMON);
             }
@@ -119,8 +123,9 @@ public class EntityRelationController extends BaseController {
         checkParameter(TO_TYPE, strToType);
         EntityId fromId = EntityIdFactory.getByTypeAndId(strFromType, strFromId);
         EntityId toId = EntityIdFactory.getByTypeAndId(strToType, strToId);
-        checkEntityId(fromId, Operation.WRITE);
-        checkEntityId(toId, Operation.WRITE);
+        checkCanCreateRelation(fromId);
+        checkCanCreateRelation(toId);
+
         RelationTypeGroup relationTypeGroup = parseRelationTypeGroup(strRelationTypeGroup, RelationTypeGroup.COMMON);
         EntityRelation relation = new EntityRelation(fromId, toId, strRelationType, relationTypeGroup);
         try {
@@ -372,6 +377,14 @@ public class EntityRelationController extends BaseController {
             return checkNotNull(filterRelationsByReadPermission(relationService.findInfoByQuery(getTenantId(), query).get()));
         } catch (Exception e) {
             throw handleException(e);
+        }
+    }
+
+    private void checkCanCreateRelation(EntityId entityId) throws ThingsboardException {
+        SecurityUser currentUser = getCurrentUser();
+        var isTenantAdminAndRelateToSelf = currentUser.isTenantAdmin() && currentUser.getTenantId().equals(entityId);
+        if (!isTenantAdminAndRelateToSelf) {
+            checkEntityId(entityId, Operation.WRITE);
         }
     }
 
