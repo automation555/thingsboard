@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,6 @@
  */
 package org.thingsboard.server.common.data.tenant.profile;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -36,8 +34,6 @@ public class DefaultTenantProfileConfiguration implements TenantProfileConfigura
     private long maxUsers;
     private long maxDashboards;
     private long maxRuleChains;
-    private long maxResourcesInBytes;
-    private long maxOtaPackagesInBytes;
 
     private String transportTenantMsgRateLimit;
     private String transportTenantTelemetryMsgRateLimit;
@@ -45,6 +41,23 @@ public class DefaultTenantProfileConfiguration implements TenantProfileConfigura
     private String transportDeviceMsgRateLimit;
     private String transportDeviceTelemetryMsgRateLimit;
     private String transportDeviceTelemetryDataPointsRateLimit;
+
+    private String rateLimitsTenantConfiguration;
+    private String rateLimitsCustomerConfiguration;
+
+    private int wsLimitMaxSessionsPerTenant;
+    private int wsLimitMaxSessionsPerCustomer;
+    private int wsLimitMaxSessionsPerRegularUser;
+    private int wsLimitMaxSessionsPerPublicUser;
+    private int wsLimitQueuePerWsSession;
+    private long wsLimitMaxSubscriptionsPerTenant;
+    private long wsLimitMaxSubscriptionsPerCustomer;
+    private long wsLimitMaxSubscriptionsPerRegularUser;
+    private long wsLimitMaxSubscriptionsPerPublicUser;
+    private String wsLimitUpdatesPerSession;
+
+    private String cassandraTenantLimitsConfiguration;
+    private boolean printTenantNames;
 
     private long maxTransportMessages;
     private long maxTransportDataPoints;
@@ -57,8 +70,6 @@ public class DefaultTenantProfileConfiguration implements TenantProfileConfigura
     private long maxCreatedAlarms;
 
     private int defaultStorageTtlDays;
-    private int alarmsTtlDays;
-    private int rpcTtlDays;
 
     private double warnThreshold;
 
