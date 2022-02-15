@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket4j;
 import io.github.bucket4j.local.LocalBucket;
 import io.github.bucket4j.local.LocalBucketBuilder;
+import lombok.Getter;
 
 import java.time.Duration;
 
@@ -27,6 +28,8 @@ import java.time.Duration;
  */
 public class TbRateLimits {
     private final LocalBucket bucket;
+    @Getter
+    private final String configuration;
 
     public TbRateLimits(String limitsConfiguration) {
         LocalBucketBuilder builder = Bucket4j.builder();
@@ -42,8 +45,7 @@ public class TbRateLimits {
         } else {
             throw new IllegalArgumentException("Failed to parse rate limits configuration: " + limitsConfiguration);
         }
-
-
+        this.configuration = limitsConfiguration;
     }
 
     public boolean tryConsume() {
