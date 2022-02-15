@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.EntityType;
-import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
@@ -35,14 +34,13 @@ import org.thingsboard.server.dao.asset.AssetService;
 import org.thingsboard.server.dao.dashboard.DashboardService;
 import org.thingsboard.server.dao.device.DeviceService;
 import org.thingsboard.server.dao.entity.AbstractEntityService;
-import org.thingsboard.server.dao.entityview.EntityViewService;
 import org.thingsboard.server.dao.exception.DataValidationException;
 import org.thingsboard.server.dao.exception.IncorrectParameterException;
 import org.thingsboard.server.dao.service.DataValidator;
 import org.thingsboard.server.dao.service.PaginatedRemover;
 import org.thingsboard.server.dao.service.Validator;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
-import org.thingsboard.server.dao.tenant.TenantDao;
+import org.thingsboard.server.dao.tenant.TenantService;
 import org.thingsboard.server.dao.usagerecord.ApiUsageStateService;
 import org.thingsboard.server.dao.user.UserService;
 
@@ -66,16 +64,13 @@ public class CustomerServiceImpl extends AbstractEntityService implements Custom
     private UserService userService;
 
     @Autowired
-    private TenantDao tenantDao;
+    private TenantService tenantService;
 
     @Autowired
     private AssetService assetService;
 
     @Autowired
     private DeviceService deviceService;
-
-    @Autowired
-    private EntityViewService entityViewService;
 
     @Autowired
     private DashboardService dashboardService;
@@ -213,8 +208,7 @@ public class CustomerServiceImpl extends AbstractEntityService implements Custom
                     if (customer.getTenantId() == null) {
                         throw new DataValidationException("Customer should be assigned to tenant!");
                     } else {
-                        Tenant tenant = tenantDao.findById(tenantId, customer.getTenantId().getId());
-                        if (tenant == null) {
+                        if (!tenantService.tenantExists(customer.getTenantId())) {
                             throw new DataValidationException("Customer is referencing to non-existent tenant!");
                         }
                     }

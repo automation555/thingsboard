@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@ import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.EntitySubtype;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.EntityView;
-import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.asset.Asset;
 import org.thingsboard.server.common.data.asset.AssetInfo;
 import org.thingsboard.server.common.data.asset.AssetSearchQuery;
@@ -55,14 +54,13 @@ import org.thingsboard.server.dao.exception.DataValidationException;
 import org.thingsboard.server.dao.service.DataValidator;
 import org.thingsboard.server.dao.service.PaginatedRemover;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
-import org.thingsboard.server.dao.tenant.TenantDao;
+import org.thingsboard.server.dao.tenant.TenantService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.thingsboard.server.common.data.CacheConstants.ASSET_CACHE;
@@ -86,7 +84,7 @@ public class BaseAssetService extends AbstractEntityService implements AssetServ
     private AssetDao assetDao;
 
     @Autowired
-    private TenantDao tenantDao;
+    private TenantService tenantService;
 
     @Autowired
     private CustomerDao customerDao;
@@ -168,14 +166,9 @@ public class BaseAssetService extends AbstractEntityService implements AssetServ
         deleteEntityRelations(tenantId, assetId);
 
         Asset asset = assetDao.findById(tenantId, assetId.getId());
-        try {
-            List<EntityView> entityViews = entityViewService.findEntityViewsByTenantIdAndEntityIdAsync(asset.getTenantId(), assetId).get();
-            if (entityViews != null && !entityViews.isEmpty()) {
-                throw new DataValidationException("Can't delete asset that has entity views!");
-            }
-        } catch (ExecutionException | InterruptedException e) {
-            log.error("Exception while finding entity views for assetId [{}]", assetId, e);
-            throw new RuntimeException("Exception while finding entity views for assetId [" + assetId + "]", e);
+        List<EntityView> entityViews = entityViewService.findEntityViewsByTenantIdAndEntityId(asset.getTenantId(), assetId);
+        if (entityViews != null && !entityViews.isEmpty()) {
+            throw new DataValidationException("Can't delete asset that has entity views!");
         }
 
         removeAssetFromCacheByName(asset.getTenantId(), asset.getName());
@@ -416,8 +409,7 @@ public class BaseAssetService extends AbstractEntityService implements AssetServ
                     if (asset.getTenantId() == null) {
                         throw new DataValidationException("Asset should be assigned to tenant!");
                     } else {
-                        Tenant tenant = tenantDao.findById(tenantId, asset.getTenantId().getId());
-                        if (tenant == null) {
+                        if (!tenantService.tenantExists(asset.getTenantId())) {
                             throw new DataValidationException("Asset is referencing to non-existent tenant!");
                         }
                     }

@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.thingsboard.server.common.data.BaseData;
 import org.thingsboard.server.common.data.EntityType;
-import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.EntityId;
@@ -59,7 +58,7 @@ import org.thingsboard.server.dao.service.DataValidator;
 import org.thingsboard.server.dao.service.PaginatedRemover;
 import org.thingsboard.server.dao.service.Validator;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
-import org.thingsboard.server.dao.tenant.TenantDao;
+import org.thingsboard.server.dao.tenant.TenantService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -94,7 +93,7 @@ public class BaseRuleChainService extends AbstractEntityService implements RuleC
     private RuleNodeDao ruleNodeDao;
 
     @Autowired
-    private TenantDao tenantDao;
+    private TenantService tenantService;
 
     @Autowired
     @Lazy
@@ -726,8 +725,7 @@ public class BaseRuleChainService extends AbstractEntityService implements RuleC
                     if (ruleChain.getTenantId() == null || ruleChain.getTenantId().isNullUid()) {
                         throw new DataValidationException("Rule chain should be assigned to tenant!");
                     }
-                    Tenant tenant = tenantDao.findById(tenantId, ruleChain.getTenantId().getId());
-                    if (tenant == null) {
+                    if (!tenantService.tenantExists(ruleChain.getTenantId())) {
                         throw new DataValidationException("Rule chain is referencing to non-existent tenant!");
                     }
                     if (ruleChain.isRoot() && RuleChainType.CORE.equals(ruleChain.getType())) {

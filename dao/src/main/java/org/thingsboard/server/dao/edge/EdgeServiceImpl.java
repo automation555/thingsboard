@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,6 @@ import org.springframework.util.StringUtils;
 import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.EntitySubtype;
 import org.thingsboard.server.common.data.EntityType;
-import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.edge.EdgeInfo;
@@ -60,7 +59,7 @@ import org.thingsboard.server.dao.rule.RuleChainService;
 import org.thingsboard.server.dao.service.DataValidator;
 import org.thingsboard.server.dao.service.PaginatedRemover;
 import org.thingsboard.server.dao.service.Validator;
-import org.thingsboard.server.dao.tenant.TenantDao;
+import org.thingsboard.server.dao.tenant.TenantService;
 import org.thingsboard.server.dao.user.UserService;
 
 import javax.annotation.Nullable;
@@ -96,7 +95,7 @@ public class EdgeServiceImpl extends AbstractEntityService implements EdgeServic
     private EdgeDao edgeDao;
 
     @Autowired
-    private TenantDao tenantDao;
+    private TenantService tenantService;
 
     @Autowired
     private CustomerDao customerDao;
@@ -413,8 +412,7 @@ public class EdgeServiceImpl extends AbstractEntityService implements EdgeServic
                     if (edge.getTenantId() == null) {
                         throw new DataValidationException("Edge should be assigned to tenant!");
                     } else {
-                        Tenant tenant = tenantDao.findById(edge.getTenantId(), edge.getTenantId().getId());
-                        if (tenant == null) {
+                        if (!tenantService.tenantExists(edge.getTenantId())) {
                             throw new DataValidationException("Edge is referencing to non-existent tenant!");
                         }
                     }

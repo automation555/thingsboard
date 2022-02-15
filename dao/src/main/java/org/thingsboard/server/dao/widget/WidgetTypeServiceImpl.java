@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.id.WidgetTypeId;
 import org.thingsboard.server.common.data.widget.WidgetType;
@@ -30,7 +29,7 @@ import org.thingsboard.server.dao.exception.DataValidationException;
 import org.thingsboard.server.dao.model.ModelConstants;
 import org.thingsboard.server.dao.service.DataValidator;
 import org.thingsboard.server.dao.service.Validator;
-import org.thingsboard.server.dao.tenant.TenantDao;
+import org.thingsboard.server.dao.tenant.TenantService;
 
 import java.util.List;
 
@@ -44,7 +43,7 @@ public class WidgetTypeServiceImpl implements WidgetTypeService {
     private WidgetTypeDao widgetTypeDao;
 
     @Autowired
-    private TenantDao tenantDao;
+    private TenantService tenantService;
 
     @Autowired
     private WidgetsBundleDao widgetsBundleService;
@@ -135,11 +134,10 @@ public class WidgetTypeServiceImpl implements WidgetTypeService {
                         throw new DataValidationException("Widgets type descriptor can't be empty!");
                     }
                     if (widgetTypeDetails.getTenantId() == null) {
-                        widgetTypeDetails.setTenantId(TenantId.fromUUID(ModelConstants.NULL_UUID));
+                        widgetTypeDetails.setTenantId(new TenantId(ModelConstants.NULL_UUID));
                     }
                     if (!widgetTypeDetails.getTenantId().getId().equals(ModelConstants.NULL_UUID)) {
-                        Tenant tenant = tenantDao.findById(tenantId, widgetTypeDetails.getTenantId().getId());
-                        if (tenant == null) {
+                        if (!tenantService.tenantExists(widgetTypeDetails.getTenantId())) {
                             throw new DataValidationException("Widget type is referencing to non-existent tenant!");
                         }
                     }
