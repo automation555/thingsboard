@@ -71,7 +71,7 @@ server:
     dynamic_page_link:
       refresh_interval: "${TB_SERVER_WS_DYNAMIC_PAGE_LINK_REFRESH_INTERVAL_SEC:60}"
       refresh_pool_size: "${TB_SERVER_WS_DYNAMIC_PAGE_LINK_REFRESH_POOL_SIZE:1}"
-      max_alarm_queries_per_refresh_interval: "${TB_SERVER_WS_MAX_ALARM_QUERIES_PER_REFRESH_INTERVAL:10}"
+      max_alarm_queries_per_refresh_interval: "${TB_SERVER_WS_MAX_ALARM_QUERIES_PER_REFRESH_INTERVAL:3}"
       max_per_user: "${TB_SERVER_WS_DYNAMIC_PAGE_LINK_MAX_PER_USER:10}"
     max_entities_per_data_subscription: "${TB_SERVER_WS_MAX_ENTITIES_PER_DATA_SUBSCRIPTION:10000}"
     max_entities_per_alarm_subscription: "${TB_SERVER_WS_MAX_ENTITIES_PER_ALARM_SUBSCRIPTION:10000}"
@@ -239,6 +239,8 @@ cassandra:
     # Specify partitioning size for timestamp key-value storage. Example: MINUTES, HOURS, DAYS, MONTHS, INDEFINITE
     ts_key_value_partitioning: "${TS_KV_PARTITIONING:MONTHS}"
     ts_key_value_partitions_max_cache_size: "${TS_KV_PARTITIONS_MAX_CACHE_SIZE:100000}"
+    ts_key_value_partitions_cache_stats_enabled: "${TS_KV_PARTITIONS_CACHE_STATS_ENABLED:true}"
+    ts_key_value_partitions_cache_stats_interval: "${TS_KV_PARTITIONS_CACHE_STATS_INTERVAL:60}"
     ts_key_value_ttl: "${TS_KV_TTL:0}"
     events_ttl: "${TS_EVENTS_TTL:0}"
     # Specify TTL of debug log in seconds. The current value corresponds to one week
@@ -377,6 +379,9 @@ cache:
   attributes:
     # make sure that if cache.type is 'redis' and cache.attributes.enabled is 'true' that you change 'maxmemory-policy' Redis config property to 'allkeys-lru', 'allkeys-lfu' or 'allkeys-random'
     enabled: "${CACHE_ATTRIBUTES_ENABLED:true}"
+  stats:
+    enabled: "${CACHE_STATS_ENABLED:true}"
+    interval: "${CACHE_STATS_INTERVAL:60}"
 
 caffeine:
   specs:
@@ -831,6 +836,8 @@ transport:
     log_max_length: "${LWM2M_LOG_MAX_LENGTH:1024}"
     psm_activity_timer: "${LWM2M_PSM_ACTIVITY_TIMER:10000}"
     paging_transmission_window: "${LWM2M_PAGING_TRANSMISSION_WINDOW:10000}"
+    # Use redis for Security and Registration stores
+    redis.enabled: "${LWM2M_REDIS_ENABLED:false}"
     network_config: # In this section you can specify custom parameters for LwM2M network configuration and expose the env variables to configure outside
 #      - key: "PROTOCOL_STAGE_THREAD_COUNT"
 #        value: "${LWM2M_PROTOCOL_STAGE_THREAD_COUNT:4}"
