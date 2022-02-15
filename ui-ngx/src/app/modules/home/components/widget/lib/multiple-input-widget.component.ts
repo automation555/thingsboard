@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2022 The Thingsboard Authors
+/// Copyright © 2016-2021 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -24,14 +24,7 @@ import { UtilsService } from '@core/services/utils.service';
 import { TranslateService } from '@ngx-translate/core';
 import { DataKey, Datasource, DatasourceData, DatasourceType, WidgetConfig } from '@shared/models/widget.models';
 import { IWidgetSubscription } from '@core/api/widget-api.models';
-import {
-  createLabelFromDatasource,
-  isBoolean, isDefined,
-  isDefinedAndNotNull,
-  isEqual,
-  isNotEmptyStr,
-  isUndefined
-} from '@core/utils';
+import { createLabelFromDatasource, isDefined, isNotEmptyStr, isDefinedAndNotNull, isEqual, isString, isUndefined } from '@core/utils';
 import { EntityType } from '@shared/models/entity-type.models';
 import * as _moment from 'moment';
 import { FormBuilder, FormGroup, ValidatorFn, Validators } from '@angular/forms';
@@ -42,18 +35,16 @@ import { forkJoin, Observable, Subject } from 'rxjs';
 import { EntityId } from '@shared/models/id/entity-id';
 import { ResizeObserver } from '@juggle/resize-observer';
 import { takeUntil } from 'rxjs/operators';
-import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
+import { JsonObjectEditDialogComponent, JsonObjectEditDialogData } from "@shared/components/dialog/json-object-edit-dialog.component";
+import { MatDialog } from "@angular/material/dialog";
 
 type FieldAlignment = 'row' | 'column';
 
 type MultipleInputWidgetDataKeyType = 'server' | 'shared' | 'timeseries';
 type MultipleInputWidgetDataKeyValueType = 'string' | 'double' | 'integer' |
-                                           'booleanCheckbox' | 'booleanSwitch' |
+                                           'JSON'| 'booleanCheckbox' | 'booleanSwitch' |
                                            'dateTime' | 'date' | 'time' | 'select';
 type MultipleInputWidgetDataKeyEditableType = 'editable' | 'disabled' | 'readonly';
-
-type ConvertGetValueFunction = (value: any, ctx: WidgetContext) => any;
-type ConvertSetValueFunction = (value: any, originValue: any, ctx: WidgetContext) => any;
 
 interface MultipleInputWidgetSettings {
   widgetTitle: string;
@@ -77,7 +68,6 @@ interface MultipleInputWidgetSelectOption {
 interface MultipleInputWidgetDataKeySettings {
   dataKeyType: MultipleInputWidgetDataKeyType;
   dataKeyValueType: MultipleInputWidgetDataKeyValueType;
-  slideToggleLabelPosition?: 'after' | 'before';
   selectOptions: MultipleInputWidgetSelectOption[];
   required: boolean;
   isEditable: MultipleInputWidgetDataKeyEditableType;
@@ -90,19 +80,13 @@ interface MultipleInputWidgetDataKeySettings {
   invalidDateErrorMessage?: string;
   minValueErrorMessage?: string;
   maxValueErrorMessage?: string;
-  useCustomIcon: boolean;
   icon: string;
-  customIcon: string ;
-  safeCustomIcon?: SafeUrl;
   inputTypeNumber?: boolean;
   readOnly?: boolean;
   disabledOnCondition?: boolean;
-  useGetValueFunction?: boolean;
-  getValueFunctionBody?: string;
-  getValueFunction?: ConvertGetValueFunction;
-  useSetValueFunction?: boolean;
-  setValueFunctionBody?: string;
-  setValueFunction?: ConvertSetValueFunction;
+  saveButtonLabel?: string;
+  resetButtonLabel?: string;
+  dialogLabel?: string;
 }
 
 interface MultipleInputWidgetDataKey extends DataKey {
@@ -161,7 +145,7 @@ export class MultipleInputWidgetComponent extends PageComponent implements OnIni
               private fb: FormBuilder,
               private attributeService: AttributeService,
               private translate: TranslateService,
-              private sanitizer: DomSanitizer) {
+              private dialog: MatDialog) {
     super(store);
   }
 
@@ -287,34 +271,6 @@ export class MultipleInputWidgetComponent extends PageComponent implements OnIni
               });
             }
 
-            if (dataKey.settings.dataKeyValueType === 'booleanSwitch' && isUndefined(dataKey.settings.slideToggleLabelPosition)) {
-              dataKey.settings.slideToggleLabelPosition = 'after';
-            }
-
-            if (dataKey.settings.useCustomIcon && isDefinedAndNotNull(dataKey.settings.customIcon)) {
-              dataKey.settings.safeCustomIcon = this.sanitizer.bypassSecurityTrustUrl(dataKey.settings.customIcon);
-            }
-
-            if (dataKey.settings.useGetValueFunction && dataKey.settings.getValueFunctionBody.length) {
-              try {
-                dataKey.settings.getValueFunction =
-                  new Function('value, ctx', dataKey.settings.getValueFunctionBody) as ConvertGetValueFunction;
-              } catch (e) {
-                console.warn(`Parse getValue function in key ${dataKey.label}`, e);
-                dataKey.settings.getValueFunction = null;
-              }
-            }
-
-            if (dataKey.settings.useSetValueFunction && dataKey.settings.setValueFunctionBody.length) {
-              try {
-                dataKey.settings.setValueFunction =
-                  new Function('value, originValue, ctx', dataKey.settings.setValueFunctionBody) as ConvertSetValueFunction;
-              } catch (e) {
-                console.warn(`Parse setValue function in key ${dataKey.label}`, e);
-                dataKey.settings.setValueFunction = null;
-              }
-            }
-
             source.keys.push(dataKey);
           });
         } else {
@@ -392,41 +348,31 @@ export class MultipleInputWidgetComponent extends PageComponent implements OnIni
       source.keys.forEach((key) => {
         const keyData = data[dataIndex].data;
         if (keyData && keyData.length) {
-          let value = keyData[0][1];
-          const keyValue = this.getKeyValue(value, key.settings);
+          let value;
           switch (key.settings.dataKeyValueType) {
             case 'dateTime':
             case 'date':
-              if (isDefinedAndNotNull(keyValue) && keyValue !== '') {
-                if (keyValue instanceof Date) {
-                  value = keyValue;
-                } else {
-                  value = _moment(keyValue).toDate();
-                }
+              if (isDefinedAndNotNull(keyData[0][1]) && keyData[0][1] !== '') {
+                value = _moment(keyData[0][1]).toDate();
               } else {
                 value = null;
               }
               break;
             case 'time':
-              if (keyValue instanceof Date) {
-                value = keyValue;
-              } else {
-                value = _moment().startOf('day').add(keyValue, 'ms').toDate();
-              }
+              value = _moment().startOf('day').add(keyData[0][1], 'ms').toDate();
               break;
             case 'booleanCheckbox':
             case 'booleanSwitch':
-              if (isBoolean(keyValue)) {
-                value = keyValue;
-              } else {
-                value = (keyValue === 'true');
-              }
+              value = (keyData[0][1] === 'true');
               break;
             case 'select':
-              value = keyValue !== null ? keyValue.toString() : null;
+              value = keyData[0][1].toString();
+              break;
+            case 'JSON':
+              value = isString(keyData[0][1]) ? JSON.parse(keyData[0][1]) : keyData[0][1];
               break;
             default:
-              value = keyValue;
+              value = keyData[0][1];
           }
           key.value = value;
         }
@@ -460,18 +406,6 @@ export class MultipleInputWidgetComponent extends PageComponent implements OnIni
         dataIndex++;
       });
     });
-  }
-
-  private getKeyValue(data: any, keySetting: MultipleInputWidgetDataKeySettings) {
-    if (isDefined(keySetting.getValueFunction)) {
-      try {
-        return keySetting.getValueFunction(data, this.ctx);
-      } catch (e) {
-        console.warn(`Call function getValue`, e);
-        return data;
-      }
-    }
-    return data;
   }
 
   private updateWidgetDisplaying() {
@@ -565,23 +499,20 @@ export class MultipleInputWidgetComponent extends PageComponent implements OnIni
   }
 
   public inputChanged(source: MultipleInputWidgetSource, key: MultipleInputWidgetDataKey) {
-    if (!this.settings.showActionButtons && !this.isSavingInProgress && this.multipleInputFormGroup.get(key.formId).valid) {
+    if (!this.settings.showActionButtons && !this.isSavingInProgress) {
       this.isSavingInProgress = true;
-      const dataToSave: MultipleInputWidgetSource = {
-        datasource: source.datasource,
-        keys: [key]
-      };
-      this.save(dataToSave);
+      const currentValue = this.multipleInputFormGroup.get(key.formId).value;
+      if (!key.settings.required || (key.settings.required && isDefinedAndNotNull(currentValue) && isNotEmptyStr(currentValue.toString()))) {
+        const dataToSave: MultipleInputWidgetSource = {
+          datasource: source.datasource,
+          keys: [key]
+        };
+        this.save(dataToSave);
+      }
     }
   }
 
-  public saveForm() {
-    if (this.settings.showActionButtons) {
-      this.save();
-    }
-  }
-
-  private save(dataToSave?: MultipleInputWidgetSource) {
+  public save(dataToSave?: MultipleInputWidgetSource) {
     if (document?.activeElement && !this.isSavingInProgress) {
       this.isSavingInProgress = true;
       (document.activeElement as HTMLElement).blur();
@@ -601,9 +532,8 @@ export class MultipleInputWidgetComponent extends PageComponent implements OnIni
       const sharedAttributes: AttributeData[] = [];
       const telemetry: AttributeData[] = [];
       for (const key of toSave.keys) {
-        let currentValue = key.settings.dataKeyHidden ? key.value : this.multipleInputFormGroup.get(key.formId).value;
+        const currentValue = key.settings.dataKeyHidden ? key.value : this.multipleInputFormGroup.get(key.formId).value;
         if (!isEqual(currentValue, key.value) || this.settings.updateAllValues) {
-          currentValue = this.setKeyValue(currentValue, key, toSave);
           const attribute: AttributeData = {
             key: key.name,
             value: null
@@ -694,21 +624,6 @@ export class MultipleInputWidgetComponent extends PageComponent implements OnIni
     }
   }
 
-  private setKeyValue(value: any, key: MultipleInputWidgetDataKey, source: MultipleInputWidgetSource) {
-    if (isDefined(key.settings.setValueFunction)) {
-      const currentDatasourceData = this.subscription.data
-        .find(dsData => dsData.datasource === source.datasource && dsData.dataKey.name === key.name);
-      const originValue = currentDatasourceData.data[0][1];
-      try {
-        return key.settings.setValueFunction(value, originValue, this.ctx);
-      } catch (e) {
-        console.warn(`Call function setValue`, e);
-        return value;
-      }
-    }
-    return value;
-  }
-
   public discardAll() {
     this.multipleInputFormGroup.reset(undefined, {emitEvent: false});
     this.sources.forEach((source) => {
@@ -717,5 +632,32 @@ export class MultipleInputWidgetComponent extends PageComponent implements OnIni
       }
     });
     this.multipleInputFormGroup.markAsPristine();
+  }
+
+  openEditJSONDialog($event: Event, key: MultipleInputWidgetDataKey, source: MultipleInputWidgetSource) {
+    if ($event) {
+      $event.stopPropagation();
+    }
+    const formControl = this.multipleInputFormGroup.controls[key.formId];
+    this.dialog.open<JsonObjectEditDialogComponent, JsonObjectEditDialogData, object>(JsonObjectEditDialogComponent, {
+      disableClose: true,
+      panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
+      data: {
+        jsonValue: formControl.value,
+        title:  key.settings.dialogLabel,
+        saveLabel: key.settings.saveButtonLabel,
+        undoLabel: key.settings.saveButtonLabel
+      }
+    }).afterClosed().subscribe(
+      (res) => {
+        if (!isEqual(res, formControl.value)) {
+          formControl.patchValue(res);
+          formControl.markAsDirty();
+          if(!this.settings.showActionButtons) {
+            this.inputChanged(source, key);
+          }
+        }
+      }
+    );
   }
 }

@@ -1,6 +1,6 @@
 <!--
 
-    Copyright © 2016-2022 The Thingsboard Authors
+    Copyright © 2016-2021 The Thingsboard Authors
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 <form #formContainer class="tb-multiple-input"
       [formGroup]="multipleInputFormGroup"
       tb-toast toastTarget="{{ toastTargetId }}"
-      (ngSubmit)="saveForm()" novalidate autocomplete="off">
+      (ngSubmit)="save()" novalidate autocomplete="off">
   <div style="padding: 0 8px;" *ngIf="entityDetected && isAllParametersValid">
     <fieldset *ngFor="let source of sources" [ngClass]="{'fields-group': settings.showGroupTitle}">
       <legend class="group-title" *ngIf="settings.showGroupTitle">{{ getGroupTitle(source.datasource) }}
@@ -37,12 +37,7 @@
                      type="text"
                      (focus)="key.isFocused = true; focusInputElement($event)"
                      (blur)="key.isFocused = false; inputChanged(source, key)">
-              <ng-container *ngIf="key.settings.icon || key.settings.safeCustomIcon" matPrefix>
-                <mat-icon *ngIf="!key.settings.safeCustomIcon; else customToggleIcon">{{key.settings.icon}}</mat-icon>
-                <ng-template #customToggleIcon>
-                  <img class="mat-icon" [src]="key.settings.safeCustomIcon" alt="icon">
-                </ng-template>
-              </ng-container>
+              <mat-icon *ngIf="key.settings.icon" matPrefix>{{key.settings.icon}}</mat-icon>
               <mat-error *ngIf="multipleInputFormGroup.get(key.formId).hasError('required')">
                 {{ getErrorMessageText(key.settings, 'required') }}
               </mat-error>
@@ -62,12 +57,7 @@
                      max="{{key.settings.maxValue}}"
                      (focus)="key.isFocused = true; focusInputElement($event)"
                      (blur)="key.isFocused = false; inputChanged(source, key)">
-              <ng-container *ngIf="key.settings.icon || key.settings.safeCustomIcon" matPrefix>
-                <mat-icon *ngIf="!key.settings.safeCustomIcon; else customToggleIcon">{{key.settings.icon}}</mat-icon>
-                <ng-template #customToggleIcon>
-                  <img class="mat-icon" [src]="key.settings.safeCustomIcon" alt="icon">
-                </ng-template>
-              </ng-container>
+              <mat-icon *ngIf="key.settings.icon" matPrefix>{{key.settings.icon}}</mat-icon>
               <mat-error *ngIf="multipleInputFormGroup.get(key.formId).hasError('required')">
                 {{ getErrorMessageText(key.settings,'required') }}
               </mat-error>
@@ -85,16 +75,38 @@
               <span class="label-wrapper">{{key.label}}</span>
             </mat-checkbox>
           </div>
+          <div class="input-field" *ngIf="key.settings.dataKeyValueType === 'JSON'">
+            <mat-form-field class="mat-block">
+              <mat-label>{{key.label}}</mat-label>
+              <input
+                matInput
+                type="text"
+                formControlName="{{key.formId}}"
+                tb-json-to-string
+                [readonly]="key.settings.isEditable === 'readonly'"
+                [required]="key.settings.required"
+                (focus)="key.isFocused = true; focusInputElement($event)"
+                (blur)="key.isFocused = false; inputChanged(source, key)"
+              />
+              <button [disabled]="key.settings.isEditable === 'disabled' || key.settings.isEditable === 'readonly'"
+                      type="button"
+                      matSuffix
+                      mat-button
+                      mat-icon-button
+                      (click)="openEditJSONDialog($event, key, source)">
+                <mat-icon>open_in_new</mat-icon>
+              </button>
+              <mat-error *ngIf="multipleInputFormGroup.get(key.formId).hasError('required')">
+                {{ getErrorMessageText(key.settings,'required') }}
+              </mat-error>
+              <mat-error *ngIf="multipleInputFormGroup.get(key.formId).hasError('invalidJSON')">
+                {{ 'value.json-value-invalid' | translate }}
+              </mat-error>
+            </mat-form-field>
+          </div>
           <div class="input-field mat-block" *ngIf="key.settings.dataKeyValueType === 'booleanSwitch'">
             <mat-slide-toggle formControlName="{{key.formId}}"
-                              [labelPosition]="key.settings.slideToggleLabelPosition"
                               (change)="inputChanged(source, key)">
-              <ng-container *ngIf="key.settings.icon || key.settings.safeCustomIcon">
-                <mat-icon *ngIf="!key.settings.safeCustomIcon; else customToggleIcon">{{key.settings.icon}}</mat-icon>
-                <ng-template #customToggleIcon>
-                  <img class="mat-icon" [src]="key.settings.safeCustomIcon" alt="icon">
-                </ng-template>
-              </ng-container>
               <span class="label-wrapper">{{key.label}}</span>
             </mat-slide-toggle>
           </div>
@@ -127,7 +139,7 @@
               <mat-select formControlName="{{key.formId}}"
                           [required]="key.settings.required"
                           (focus)="key.isFocused = true;"
-                          (selectionChange)="key.isFocused = false; inputChanged(source, key)">
+                          (blur)="key.isFocused = false; inputChanged(source, key)">
                 <mat-option *ngFor="let option of key.settings.selectOptions"
                             [value]="option.value"
                             [disabled]="key.settings.isEditable === 'readonly'">
@@ -143,7 +155,7 @@
       </div>
     </fieldset>
     <div class="mat-padding" fxLayout="row" fxLayoutAlign="end center"
-         *ngIf="entityDetected && settings.showActionButtons">
+         [fxShow]="entityDetected && settings.showActionButtons">
       <button mat-button color="primary" type="button"
               (click)="discardAll()" style="max-height: 50px; margin-right:20px;"
               [disabled]="!multipleInputFormGroup.dirty">
