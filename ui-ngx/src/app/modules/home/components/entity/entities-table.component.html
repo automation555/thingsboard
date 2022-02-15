@@ -1,6 +1,6 @@
 <!--
 
-    Copyright © 2016-2022 The Thingsboard Authors
+    Copyright © 2016-2021 The Thingsboard Authors
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -23,9 +23,8 @@
               position="end"
               [opened]="isDetailsOpen">
     <tb-entity-details-panel
-      #entityDetailsPanel
       [entitiesTableConfig]="entitiesTableConfig"
-      [entityId]="isDetailsOpen ? dataSource.currentEntity?.id : null"
+      [entityId]="dataSource.currentEntity?.id"
       (closeEntityDetails)="isDetailsOpen = false; detailsPanelOpened.emit(isDetailsOpen);"
       (entityUpdated)="onEntityUpdated($event)"
       (entityAction)="onEntityAction($event)"
@@ -38,7 +37,9 @@
         <mat-toolbar class="mat-table-toolbar" [fxShow]="!textSearchMode && dataSource.selection.isEmpty()">
           <div class="mat-toolbar-tools">
             <div fxLayout="row" fxLayoutAlign="start center" fxLayout.xs="column" fxLayoutAlign.xs="center start" class="title-container">
-              <span *ngIf="entitiesTableConfig.tableTitle" class="tb-entity-table-title">{{ entitiesTableConfig.tableTitle }}</span>
+              <span *ngIf="entitiesTableConfig.tableTitle"
+                    [fxHide.xs]="entitiesTableConfig.hideTitleOnMobile"
+                    class="tb-entity-table-title">{{ entitiesTableConfig.tableTitle }}</span>
               <tb-anchor #entityTableHeader></tb-anchor>
               <tb-timewindow *ngIf="entitiesTableConfig.useTimePageLink" [(ngModel)]="timewindow"
                               (ngModelChange)="onTimewindowChange()"
@@ -267,7 +268,6 @@
                        [pageIndex]="pageLink.page"
                        [pageSize]="pageLink.pageSize"
                        [pageSizeOptions]="pageSizeOptions"
-                       [hidePageSize]="hidePageSize"
                        showFirstLastButtons></mat-paginator>
       </div>
     </div>
