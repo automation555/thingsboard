@@ -18,9 +18,11 @@ package org.thingsboard.server.utils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.io.input.CharSequenceReader;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -28,8 +30,18 @@ import java.util.stream.Stream;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class CsvUtils {
 
-    public static List<List<String>> parseCsv(String content, Character delimiter) throws Exception {
-        CSVFormat csvFormat = delimiter.equals(',') ? CSVFormat.DEFAULT : CSVFormat.DEFAULT.withDelimiter(delimiter);
+    public static String toCsv(List<List<String>> records, char delimiter) throws IOException {
+        CSVFormat csvFormat = getCsvFormat(delimiter);
+        StringBuilder csv = new StringBuilder();
+
+        CSVPrinter csvPrinter = new CSVPrinter(csv, csvFormat);
+        csvPrinter.printRecords(records);
+
+        return csv.toString();
+    }
+
+    public static List<List<String>> parseCsv(String content, char delimiter) throws Exception {
+        CSVFormat csvFormat = getCsvFormat(delimiter);
 
         List<CSVRecord> records;
         try (CharSequenceReader reader = new CharSequenceReader(content)) {
@@ -41,6 +53,10 @@ public class CsvUtils {
                         .map(record::get)
                         .collect(Collectors.toList()))
                 .collect(Collectors.toList());
+    }
+
+    private static CSVFormat getCsvFormat(char delimiter) {
+        return delimiter == ',' ? CSVFormat.DEFAULT : CSVFormat.DEFAULT.withDelimiter(delimiter);
     }
 
 }
