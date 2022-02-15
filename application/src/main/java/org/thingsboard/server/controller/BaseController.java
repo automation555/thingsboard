@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -126,6 +126,7 @@ import org.thingsboard.server.service.component.ComponentDiscoveryService;
 import org.thingsboard.server.service.edge.EdgeLicenseService;
 import org.thingsboard.server.service.edge.EdgeNotificationService;
 import org.thingsboard.server.service.edge.rpc.EdgeRpcService;
+import org.thingsboard.server.service.lwm2m.LwM2MServerSecurityInfoRepository;
 import org.thingsboard.server.service.ota.OtaPackageStateService;
 import org.thingsboard.server.service.profile.TbDeviceProfileCache;
 import org.thingsboard.server.service.resource.TbResourceService;
@@ -260,6 +261,9 @@ public abstract class BaseController {
     @Autowired
     protected TbDeviceProfileCache deviceProfileCache;
 
+    @Autowired
+    protected LwM2MServerSecurityInfoRepository lwM2MServerSecurityInfoRepository;
+
     @Autowired(required = false)
     protected EdgeService edgeService;
 
@@ -330,11 +334,7 @@ public abstract class BaseController {
     }
 
     <T> T checkNotNull(Optional<T> reference, String notFoundMessage) throws ThingsboardException {
-        if (reference.isPresent()) {
-            return reference.get();
-        } else {
-            throw new ThingsboardException(notFoundMessage, ThingsboardErrorCode.ITEM_NOT_FOUND);
-        }
+        return reference.orElseThrow(()->new ThingsboardException(notFoundMessage, ThingsboardErrorCode.ITEM_NOT_FOUND));
     }
 
     void checkParameter(String name, String param) throws ThingsboardException {
@@ -482,7 +482,7 @@ public abstract class BaseController {
                     checkCustomerId(new CustomerId(entityId.getId()), operation);
                     return;
                 case TENANT:
-                    checkTenantId(TenantId.fromUUID(entityId.getId()), operation);
+                    checkTenantId(new TenantId(entityId.getId()), operation);
                     return;
                 case TENANT_PROFILE:
                     checkTenantProfileId(new TenantProfileId(entityId.getId()), operation);
