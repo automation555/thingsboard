@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -103,6 +104,16 @@ public class JpaPsqlTimeseriesDao extends AbstractChunkedAggregationTimeseriesDa
     public void cleanup(long systemTtl) {
         cleanupPartitions(systemTtl);
         super.cleanup(systemTtl);
+    }
+
+    @Override
+    public void cleanup(long systemTtl, List<String> excludedKeys) {
+        super.cleanup(systemTtl, excludedKeys);
+    }
+
+    @Override
+    public long doCleanup(long expirationTime, List<Integer> keyIds) {
+        return tsKvRepository.cleanup(expirationTime, keyIds);
     }
 
     private void cleanupPartitions(long systemTtl) {

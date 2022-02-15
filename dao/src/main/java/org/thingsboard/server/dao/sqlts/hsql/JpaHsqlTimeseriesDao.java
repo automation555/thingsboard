@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@ import org.thingsboard.server.dao.timeseries.TimeseriesDao;
 import org.thingsboard.server.dao.util.HsqlDao;
 import org.thingsboard.server.dao.util.SqlTsDao;
 
+import java.util.List;
+
 
 @Component
 @Slf4j
@@ -57,6 +59,16 @@ public class JpaHsqlTimeseriesDao extends AbstractChunkedAggregationTimeseriesDa
     @Override
     public void cleanup(long systemTtl) {
 
+    }
+
+    @Override
+    public void cleanup(long systemTtl, List<String> excludedKeys) {
+
+    }
+
+    @Override
+    public long doCleanup(long expirationTime, List<Integer> keyIds) {
+        return 0;
     }
 
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
@@ -34,7 +33,6 @@ import org.thingsboard.server.common.data.kv.ReadTsKvQuery;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
 import org.thingsboard.server.common.stats.StatsFactory;
 import org.thingsboard.server.dao.DaoUtil;
-import org.thingsboard.server.dao.model.ModelConstants;
 import org.thingsboard.server.dao.model.sql.AbstractTsKvEntity;
 import org.thingsboard.server.dao.model.sqlts.timescale.ts.TimescaleTsKvEntity;
 import org.thingsboard.server.dao.sql.TbSqlBlockingQueueParams;
@@ -46,10 +44,12 @@ import org.thingsboard.server.dao.util.TimescaleDBTsDao;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
-import java.sql.CallableStatement;
-import java.sql.SQLException;
-import java.sql.Types;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
@@ -107,7 +107,7 @@ public class TimescaleTimeseriesDao extends AbstractSqlTimeseriesDao implements 
 
     @Override
     public ListenableFuture<Integer> save(TenantId tenantId, EntityId entityId, TsKvEntry tsKvEntry, long ttl) {
-        int dataPointDays = getDataPointDays(tsKvEntry,  computeTtl(ttl));
+        int dataPointDays = getDataPointDays(tsKvEntry, computeTtl(ttl));
         String strKey = tsKvEntry.getKey();
         Integer keyId = getOrSaveKeyId(strKey);
         TimescaleTsKvEntity entity = new TimescaleTsKvEntity();
@@ -165,6 +165,16 @@ public class TimescaleTimeseriesDao extends AbstractSqlTimeseriesDao implements 
         super.cleanup(systemTtl);
     }
 
+    @Override
+    public void cleanup(long systemTtl, List<String> excludedKeys) {
+        super.cleanup(systemTtl, excludedKeys);
+    }
+
+    @Override
+    public long doCleanup(long expirationTime, List<Integer> keyIds) {
+        return tsKvRepository.cleanup(expirationTime, keyIds);
+    }
+
     private ListenableFuture<List<TsKvEntry>> findAllAsyncWithLimit(EntityId entityId, ReadTsKvQuery query) {
         String strKey = query.getKey();
         Integer keyId = getOrSaveKeyId(strKey);
@@ -174,7 +184,8 @@ public class TimescaleTimeseriesDao extends AbstractSqlTimeseriesDao implements 
                 query.getStartTs(),
                 query.getEndTs(),
                 PageRequest.of(0, query.getLimit(),
-                        Sort.by(new Sort.Order(Sort.Direction.fromString(query.getOrder()),  "ts").nullsNative())));;
+                        Sort.by(Sort.Direction.fromString(
+                                query.getOrder()), "ts")));
         timescaleTsKvEntities.forEach(tsKvEntity -> tsKvEntity.setStrKey(strKey));
         return Futures.immediateFuture(DaoUtil.convertDataList(timescaleTsKvEntities));
     }
