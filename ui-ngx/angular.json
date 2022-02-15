@@ -11,9 +11,6 @@
       "schematics": {
         "@schematics/angular:component": {
           "style": "scss"
-        },
-        "@schematics/angular:application": {
-          "strict": true
         }
       },
       "architect": {
@@ -63,6 +60,11 @@
                 "glob": "marker-shadow.png",
                 "input": "node_modules/leaflet/dist/images/",
                 "output": "/"
+              },
+              {
+                "glob": "**/*",
+                "input": "node_modules/material-design-icons/iconfont/",
+                "output": "assets/fonts"
               }
             ],
             "styles": [
@@ -77,7 +79,6 @@
               "src/app/modules/home/components/widget/lib/maps/markers.scss",
               "node_modules/leaflet.markercluster/dist/MarkerCluster.css",
               "node_modules/leaflet.markercluster/dist/MarkerCluster.Default.css",
-              "node_modules/@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css",
               "node_modules/prismjs/themes/prism.css",
               "node_modules/prismjs/plugins/line-numbers/prism-line-numbers.css"
             ],
@@ -89,7 +90,7 @@
             "scripts": [
               "node_modules/tinycolor2/dist/tinycolor-min.js",
               "node_modules/split.js/dist/split.min.js",
-              "node_modules/systemjs/dist/system.min.js",
+              "node_modules/systemjs/dist/system.js",
               "node_modules/marked/lib/marked.js",
               "node_modules/prismjs/prism.js",
               "node_modules/prismjs/components/prism-css.min.js",
@@ -97,7 +98,7 @@
               "node_modules/prismjs/components/prism-json.min.js",
               "node_modules/prismjs/components/prism-javascript.min.js",
               "node_modules/prismjs/components/prism-typescript.min.js",
-              "node_modules/prismjs/plugins/line-numbers/prism-line-numbers.min.js"
+              "node_modules/prismjs/plugins/line-numbers/prism-line-numbers.js"
             ],
             "customWebpackConfig": {
               "path": "./extra-webpack.config.js"
@@ -128,10 +129,10 @@
               "jquery.terminal",
               "tooltipster",
               "jstree",
-              "qrcode",
-              "wcwidth",
-              "leaflet-polylinedecorator"
-            ]
+              "qrcode"
+            ],
+            "serviceWorker": true,
+            "ngswConfigPath": "ngsw-config.json"
           },
           "configurations": {
             "production": {
@@ -141,14 +142,7 @@
                   "with": "src/environments/environment.prod.ts"
                 }
               ],
-              "optimization": {
-                "scripts": true,
-                "styles": {
-                  "minify": true,
-                  "inlineCritical": false
-                },
-                "fonts": false
-              },
+              "optimization": true,
               "outputHashing": "all",
               "sourceMap": false,
               "namedChunks": false,
@@ -162,21 +156,6 @@
                   "maximumError": "12mb"
                 }
               ]
-            },
-            "development": {
-              "buildOptimizer": false,
-              "optimization": {
-                "scripts": false,
-                "styles": {
-                  "minify": false,
-                  "inlineCritical": false
-                },
-                "fonts": false
-              },
-              "vendorChunk": true,
-              "extractLicenses": false,
-              "sourceMap": true,
-              "namedChunks": true
             }
           }
         },
@@ -189,12 +168,8 @@
           "configurations": {
             "production": {
               "browserTarget": "thingsboard:build:production"
-            },
-            "development": {
-              "browserTarget": "thingsboard:build:development"
             }
-          },
-          "defaultConfiguration": "development"
+          }
         },
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
@@ -215,7 +190,8 @@
             "scripts": [],
             "assets": [
               "src/favicon.ico",
-              "src/assets"
+              "src/assets",
+              "src/manifest.webmanifest"
             ]
           }
         },
