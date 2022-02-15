@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,10 +21,10 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.springframework.util.StopWatch;
 import org.thingsboard.server.queue.TbQueueAdmin;
 import org.thingsboard.server.queue.TbQueueMsg;
 import org.thingsboard.server.queue.common.AbstractTbQueueConsumerTemplate;
+import org.thingsboard.server.queue.settings.TbKafkaSettings;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -51,7 +51,7 @@ public class TbKafkaConsumerTemplate<T extends TbQueueMsg> extends AbstractTbQue
                                     String clientId, String groupId, String topic,
                                     TbQueueAdmin admin, TbKafkaConsumerStatsService statsService) {
         super(topic);
-        Properties props = settings.toConsumerProps(topic);
+        Properties props = settings.toConsumerProps();
         props.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
         if (groupId != null) {
             props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
@@ -73,26 +73,15 @@ public class TbKafkaConsumerTemplate<T extends TbQueueMsg> extends AbstractTbQue
     protected void doSubscribe(List<String> topicNames) {
         if (!topicNames.isEmpty()) {
             topicNames.forEach(admin::createTopicIfNotExists);
-            log.info("subscribe topics {}", topicNames);
             consumer.subscribe(topicNames);
         } else {
-            log.info("unsubscribe due to empty topic list");
             consumer.unsubscribe();
         }
     }
 
     @Override
     protected List<ConsumerRecord<String, byte[]>> doPoll(long durationInMillis) {
-        StopWatch stopWatch = new StopWatch();
-        stopWatch.start();
-
-        log.trace("poll topic {} maxDuration {}", getTopic(), durationInMillis);
-
         ConsumerRecords<String, byte[]> records = consumer.poll(Duration.ofMillis(durationInMillis));
-
-        stopWatch.stop();
-        log.trace("poll topic {} took {}ms", getTopic(), stopWatch.getTotalTimeMillis());
-
         if (records.isEmpty()) {
             return Collections.emptyList();
         } else {
@@ -109,12 +98,11 @@ public class TbKafkaConsumerTemplate<T extends TbQueueMsg> extends AbstractTbQue
 
     @Override
     protected void doCommit() {
-        consumer.commitSync();
+        consumer.commitAsync();
     }
 
     @Override
     protected void doUnsubscribe() {
-        log.info("unsubscribe topic and close consumer for topic {}", getTopic());
         if (consumer != null) {
             consumer.unsubscribe();
             consumer.close();

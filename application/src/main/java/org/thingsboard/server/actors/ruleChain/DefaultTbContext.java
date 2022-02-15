@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@ import org.thingsboard.rule.engine.api.TbRelationTypes;
 import org.thingsboard.rule.engine.api.sms.SmsSenderFactory;
 import org.thingsboard.server.actors.ActorSystemContext;
 import org.thingsboard.server.actors.TbActorRef;
-import org.thingsboard.server.cluster.TbClusterService;
 import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.DataConstants;
 import org.thingsboard.server.common.data.Device;
@@ -42,9 +41,7 @@ import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.TenantProfile;
 import org.thingsboard.server.common.data.alarm.Alarm;
 import org.thingsboard.server.common.data.asset.Asset;
-import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DeviceId;
-import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.RuleChainId;
 import org.thingsboard.server.common.data.id.RuleNodeId;
@@ -56,7 +53,6 @@ import org.thingsboard.server.common.data.rule.RuleNodeState;
 import org.thingsboard.server.common.msg.TbActorMsg;
 import org.thingsboard.server.common.msg.TbMsg;
 import org.thingsboard.server.common.msg.TbMsgMetaData;
-import org.thingsboard.server.common.msg.TbMsgProcessingStackItem;
 import org.thingsboard.server.common.msg.queue.ServiceQueue;
 import org.thingsboard.server.common.msg.queue.ServiceType;
 import org.thingsboard.server.common.msg.queue.TopicPartitionInfo;
@@ -66,14 +62,11 @@ import org.thingsboard.server.dao.cassandra.CassandraCluster;
 import org.thingsboard.server.dao.customer.CustomerService;
 import org.thingsboard.server.dao.dashboard.DashboardService;
 import org.thingsboard.server.dao.device.DeviceService;
-import org.thingsboard.server.dao.edge.EdgeEventService;
-import org.thingsboard.server.dao.edge.EdgeService;
 import org.thingsboard.server.dao.entityview.EntityViewService;
 import org.thingsboard.server.dao.nosql.CassandraStatementTask;
 import org.thingsboard.server.dao.nosql.TbResultSetFuture;
-import org.thingsboard.server.dao.ota.OtaPackageService;
+import org.thingsboard.server.dao.queue.QueueStatsService;
 import org.thingsboard.server.dao.relation.RelationService;
-import org.thingsboard.server.dao.resource.ResourceService;
 import org.thingsboard.server.dao.rule.RuleChainService;
 import org.thingsboard.server.dao.tenant.TenantService;
 import org.thingsboard.server.dao.timeseries.TimeseriesService;
@@ -136,25 +129,6 @@ class DefaultTbContext implements TbContext {
     }
 
     @Override
-    public void input(TbMsg msg, RuleChainId ruleChainId) {
-        msg.pushToStack(nodeCtx.getSelf().getRuleChainId(), nodeCtx.getSelf().getId());
-        nodeCtx.getChainActor().tell(new RuleChainInputMsg(ruleChainId, msg));
-    }
-
-    @Override
-    public void output(TbMsg msg, String relationType) {
-        TbMsgProcessingStackItem item = msg.popFormStack();
-        if (item == null) {
-            ack(msg);
-        } else {
-            if (nodeCtx.getSelf().isDebugMode()) {
-                mainCtx.persistDebugOutput(nodeCtx.getTenantId(), nodeCtx.getSelf().getId(), msg, relationType);
-            }
-            nodeCtx.getChainActor().tell(new RuleChainOutputMsg(item.getRuleChainId(), item.getRuleNodeId(), relationType, msg));
-        }
-    }
-
-    @Override
     public void enqueue(TbMsg tbMsg, Runnable onSuccess, Consumer<Throwable> onFailure) {
         TopicPartitionInfo tpi = mainCtx.resolve(ServiceType.TB_RULE_ENGINE, getTenantId(), tbMsg.getOriginator());
         enqueue(tpi, tbMsg, onFailure, onSuccess);
@@ -167,11 +141,6 @@ class DefaultTbContext implements TbContext {
     }
 
     private void enqueue(TopicPartitionInfo tpi, TbMsg tbMsg, Consumer<Throwable> onFailure, Runnable onSuccess) {
-        if (!tbMsg.isValid()) {
-            log.trace("[{}] Skip invalid message: {}", getTenantId(), tbMsg);
-            onFailure.accept(new IllegalArgumentException("Source message is no longer valid!"));
-            return;
-        }
         TransportProtos.ToRuleEngineMsg msg = TransportProtos.ToRuleEngineMsg.newBuilder()
                 .setTenantIdMSB(getTenantId().getId().getMostSignificantBits())
                 .setTenantIdLSB(getTenantId().getId().getLeastSignificantBits())
@@ -215,13 +184,13 @@ class DefaultTbContext implements TbContext {
     @Override
     public void enqueueForTellNext(TbMsg tbMsg, String queueName, String relationType, Runnable onSuccess, Consumer<Throwable> onFailure) {
         TopicPartitionInfo tpi = resolvePartition(tbMsg, queueName);
-        enqueueForTellNext(tpi, queueName, tbMsg, Collections.singleton(relationType), null, onSuccess, onFailure);
+        enqueueForTellNext(tpi, tbMsg, Collections.singleton(relationType), null, onSuccess, onFailure);
     }
 
     @Override
     public void enqueueForTellNext(TbMsg tbMsg, String queueName, Set<String> relationTypes, Runnable onSuccess, Consumer<Throwable> onFailure) {
         TopicPartitionInfo tpi = resolvePartition(tbMsg, queueName);
-        enqueueForTellNext(tpi, queueName, tbMsg, relationTypes, null, onSuccess, onFailure);
+        enqueueForTellNext(tpi, tbMsg, relationTypes, null, onSuccess, onFailure);
     }
 
     private TopicPartitionInfo resolvePartition(TbMsg tbMsg, String queueName) {
@@ -236,18 +205,9 @@ class DefaultTbContext implements TbContext {
     }
 
     private void enqueueForTellNext(TopicPartitionInfo tpi, TbMsg source, Set<String> relationTypes, String failureMessage, Runnable onSuccess, Consumer<Throwable> onFailure) {
-        enqueueForTellNext(tpi, source.getQueueName(), source, relationTypes, failureMessage, onSuccess, onFailure);
-    }
-
-    private void enqueueForTellNext(TopicPartitionInfo tpi, String queueName, TbMsg source, Set<String> relationTypes, String failureMessage, Runnable onSuccess, Consumer<Throwable> onFailure) {
-        if (!source.isValid()) {
-            log.trace("[{}] Skip invalid message: {}", getTenantId(), source);
-            onFailure.accept(new IllegalArgumentException("Source message is no longer valid!"));
-            return;
-        }
         RuleChainId ruleChainId = nodeCtx.getSelf().getRuleChainId();
         RuleNodeId ruleNodeId = nodeCtx.getSelf().getId();
-        TbMsg tbMsg = TbMsg.newMsg(source, queueName, ruleChainId, ruleNodeId);
+        TbMsg tbMsg = TbMsg.newMsg(source, ruleChainId, ruleNodeId);
         TransportProtos.ToRuleEngineMsg.Builder msg = TransportProtos.ToRuleEngineMsg.newBuilder()
                 .setTenantIdMSB(getTenantId().getId().getMostSignificantBits())
                 .setTenantIdLSB(getTenantId().getId().getLeastSignificantBits())
@@ -258,7 +218,7 @@ class DefaultTbContext implements TbContext {
         }
         if (nodeCtx.getSelf().isDebugMode()) {
             relationTypes.forEach(relationType ->
-                    mainCtx.persistDebugOutput(nodeCtx.getTenantId(), nodeCtx.getSelf().getId(), tbMsg, relationType, null, failureMessage));
+                    mainCtx.persistDebugOutput(nodeCtx.getTenantId(), nodeCtx.getSelf().getId(), tbMsg, relationType));
         }
         mainCtx.getClusterService().pushMsgToRuleEngine(tpi, tbMsg.getId(), msg.build(), new SimpleTbQueueCallback(onSuccess, onFailure));
     }
@@ -307,12 +267,7 @@ class DefaultTbContext implements TbContext {
 
     @Override
     public TbMsg newMsg(String queueName, String type, EntityId originator, TbMsgMetaData metaData, String data) {
-        return newMsg(queueName, type, originator, null, metaData, data);
-    }
-
-    @Override
-    public TbMsg newMsg(String queueName, String type, EntityId originator, CustomerId customerId, TbMsgMetaData metaData, String data) {
-        return TbMsg.newMsg(queueName, type, originator, customerId, metaData, data, nodeCtx.getSelf().getRuleChainId(), nodeCtx.getSelf().getId());
+        return TbMsg.newMsg(queueName, type, originator, metaData, data, nodeCtx.getSelf().getRuleChainId(), nodeCtx.getSelf().getId());
     }
 
     @Override
@@ -365,11 +320,6 @@ class DefaultTbContext implements TbContext {
         return entityActionMsg(alarm, alarm.getId(), ruleNodeId, action, queueName, ruleChainId);
     }
 
-    @Override
-    public void onEdgeEventUpdate(TenantId tenantId, EdgeId edgeId) {
-        mainCtx.getClusterService().onEdgeEventUpdate(tenantId, edgeId);
-    }
-
     public <E, I extends EntityId> TbMsg entityActionMsg(E entity, I id, RuleNodeId ruleNodeId, String action) {
         return entityActionMsg(entity, id, ruleNodeId, action, ServiceQueue.MAIN, null);
     }
@@ -400,6 +350,11 @@ class DefaultTbContext implements TbContext {
     @Override
     public TenantId getTenantId() {
         return nodeCtx.getTenantId();
+    }
+
+    @Override
+    public ListeningExecutor getJsExecutor() {
+        return mainCtx.getJsExecutor();
     }
 
     @Override
@@ -484,11 +439,6 @@ class DefaultTbContext implements TbContext {
     }
 
     @Override
-    public TbClusterService getClusterService() {
-        return mainCtx.getClusterService();
-    }
-
-    @Override
     public DashboardService getDashboardService() {
         return mainCtx.getDashboardService();
     }
@@ -524,28 +474,8 @@ class DefaultTbContext implements TbContext {
     }
 
     @Override
-    public ResourceService getResourceService() {
-        return mainCtx.getResourceService();
-    }
-
-    @Override
-    public OtaPackageService getOtaPackageService() {
-        return mainCtx.getOtaPackageService();
-    }
-
-    @Override
     public RuleEngineDeviceProfileCache getDeviceProfileCache() {
         return mainCtx.getDeviceProfileCache();
-    }
-
-    @Override
-    public EdgeService getEdgeService() {
-        return mainCtx.getEdgeService();
-    }
-
-    @Override
-    public EdgeEventService getEdgeEventService() {
-        return mainCtx.getEdgeEventService();
     }
 
     @Override
@@ -554,8 +484,8 @@ class DefaultTbContext implements TbContext {
     }
 
     @Override
-    public MailService getMailService(boolean isSystem) {
-        if (!isSystem || mainCtx.isAllowSystemMailService()) {
+    public MailService getMailService() {
+        if (mainCtx.isAllowSystemMailService()) {
             return mainCtx.getMailService();
         } else {
             throw new RuntimeException("Access to System Mail Service is forbidden!");
@@ -577,6 +507,11 @@ class DefaultTbContext implements TbContext {
     }
 
     @Override
+    public QueueStatsService getQueueStatsService() {
+        return mainCtx.getQueueStatsService();
+    }
+
+    @Override
     public RuleEngineRpcService getRpcService() {
         return mainCtx.getTbRuleEngineDeviceRpcService();
     }
@@ -587,13 +522,8 @@ class DefaultTbContext implements TbContext {
     }
 
     @Override
-    public TbResultSetFuture submitCassandraReadTask(CassandraStatementTask task) {
-        return mainCtx.getCassandraBufferedRateReadExecutor().submit(task);
-    }
-
-    @Override
-    public TbResultSetFuture submitCassandraWriteTask(CassandraStatementTask task) {
-        return mainCtx.getCassandraBufferedRateWriteExecutor().submit(task);
+    public TbResultSetFuture submitCassandraTask(CassandraStatementTask task) {
+        return mainCtx.getCassandraBufferedRateExecutor().submit(task);
     }
 
     @Override

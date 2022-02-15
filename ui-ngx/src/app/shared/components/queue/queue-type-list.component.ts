@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2022 The Thingsboard Authors
+/// Copyright © 2016-2021 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -16,27 +16,14 @@
 
 import { AfterViewInit, Component, ElementRef, forwardRef, Input, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { ControlValueAccessor, FormBuilder, FormGroup, NG_VALUE_ACCESSOR } from '@angular/forms';
-import { Observable, of } from 'rxjs';
-import {
-  catchError,
-  debounceTime,
-  distinctUntilChanged,
-  map,
-  publishReplay,
-  refCount,
-  switchMap,
-  tap
-} from 'rxjs/operators';
+import { Observable } from 'rxjs';
+import { map, mergeMap, publishReplay, refCount, tap } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { AppState } from '@app/core/core.state';
 import { TranslateService } from '@ngx-translate/core';
 import { coerceBooleanProperty } from '@angular/cdk/coercion';
 import { QueueService } from '@core/http/queue.service';
 import { ServiceType } from '@shared/models/queue.models';
-
-interface Queue {
-  queueName: string;
-}
 
 @Component({
   selector: 'tb-queue-type-list',
@@ -52,7 +39,7 @@ export class QueueTypeListComponent implements ControlValueAccessor, OnInit, Aft
 
   queueFormGroup: FormGroup;
 
-  modelValue: Queue | null;
+  modelValue: string | null;
 
   private requiredValue: boolean;
   get required(): boolean {
@@ -71,9 +58,9 @@ export class QueueTypeListComponent implements ControlValueAccessor, OnInit, Aft
 
   @ViewChild('queueInput', {static: true}) queueInput: ElementRef<HTMLInputElement>;
 
-  filteredQueues: Observable<Array<Queue>>;
+  filteredQueues: Observable<Array<string>>;
 
-  queues: Observable<Array<Queue>>;
+  queues: Observable<Array<string>>;
 
   searchText = '';
 
@@ -100,19 +87,11 @@ export class QueueTypeListComponent implements ControlValueAccessor, OnInit, Aft
   ngOnInit() {
     this.filteredQueues = this.queueFormGroup.get('queue').valueChanges
       .pipe(
-        debounceTime(150),
-        distinctUntilChanged(),
         tap(value => {
-          let modelValue;
-          if (typeof value === 'string' || !value) {
-            modelValue = null;
-          } else {
-            modelValue = value;
-          }
-          this.updateView(modelValue);
+          this.updateView(value);
         }),
-        map(value => value ? (typeof value === 'string' ? value : value.queueName) : ''),
-        switchMap(queue => this.fetchQueues(queue) )
+        map(value => value ? value : ''),
+        mergeMap(queue => this.fetchQueues(queue) )
       );
   }
 
@@ -133,8 +112,8 @@ export class QueueTypeListComponent implements ControlValueAccessor, OnInit, Aft
 
   writeValue(value: string | null): void {
     this.searchText = '';
-    this.modelValue = value ? { queueName: value } : null;
-    this.queueFormGroup.get('queue').patchValue(this.modelValue, {emitEvent: false});
+    this.modelValue = value;
+    this.queueFormGroup.get('queue').patchValue(value, {emitEvent: false});
     this.dirty = true;
   }
 
@@ -145,42 +124,41 @@ export class QueueTypeListComponent implements ControlValueAccessor, OnInit, Aft
     }
   }
 
-  updateView(value: Queue | null) {
+  updateView(value: string | null) {
     if (this.modelValue !== value) {
       this.modelValue = value;
-      this.propagateChange(this.modelValue ? this.modelValue.queueName : null);
+      this.propagateChange(this.modelValue);
     }
   }
 
-  displayQueueFn(queue?: Queue): string | undefined {
-    return queue ? queue.queueName : undefined;
+  displayQueueFn(queue?: string): string | undefined {
+    return queue ? queue : undefined;
   }
 
-  fetchQueues(searchText?: string): Observable<Array<Queue>> {
+  fetchQueues(searchText?: string): Observable<Array<string>> {
     this.searchText = searchText;
     return this.getQueues().pipe(
-      catchError(() => of([] as Array<Queue>)),
       map(queues => {
         const result = queues.filter( queue => {
-          return searchText ? queue.queueName.toUpperCase().startsWith(searchText.toUpperCase()) : true;
+          return searchText ? queue.toUpperCase().startsWith(searchText.toUpperCase()) : true;
         });
         if (result.length) {
-          result.sort((q1, q2) => q1.queueName.localeCompare(q2.queueName));
+          if (searchText && searchText.length && result.indexOf(searchText) === -1) {
+            result.push(searchText);
+          }
+          result.sort();
+        } else if (searchText && searchText.length) {
+          result.push(searchText);
         }
         return result;
       })
     );
   }
 
-  getQueues(): Observable<Array<Queue>> {
+  getQueues(): Observable<Array<string>> {
     if (!this.queues) {
       this.queues = this.queueService.
-      getTenantQueuesByServiceType(this.queueType, {ignoreLoading: true}).pipe(
-        map((queues) => {
-          return queues.map((queueName) => {
-            return { queueName };
-          });
-        }),
+      getTenantQueuesNamesByServiceType(this.queueType, {ignoreLoading: true}).pipe(
         publishReplay(1),
         refCount()
       );

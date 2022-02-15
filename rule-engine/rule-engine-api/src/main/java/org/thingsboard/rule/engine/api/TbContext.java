@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,18 @@
 package org.thingsboard.rule.engine.api;
 
 import io.netty.channel.EventLoopGroup;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.thingsboard.common.util.ListeningExecutor;
 import org.thingsboard.rule.engine.api.sms.SmsSenderFactory;
-import org.thingsboard.server.cluster.TbClusterService;
+import org.thingsboard.server.common.data.ApiUsageRecordKey;
 import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.Device;
 import org.thingsboard.server.common.data.DeviceProfile;
 import org.thingsboard.server.common.data.TenantProfile;
 import org.thingsboard.server.common.data.alarm.Alarm;
 import org.thingsboard.server.common.data.asset.Asset;
-import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DeviceId;
-import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.EntityId;
-import org.thingsboard.server.common.data.id.RuleChainId;
 import org.thingsboard.server.common.data.id.RuleNodeId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
@@ -44,14 +42,11 @@ import org.thingsboard.server.dao.cassandra.CassandraCluster;
 import org.thingsboard.server.dao.customer.CustomerService;
 import org.thingsboard.server.dao.dashboard.DashboardService;
 import org.thingsboard.server.dao.device.DeviceService;
-import org.thingsboard.server.dao.edge.EdgeEventService;
-import org.thingsboard.server.dao.edge.EdgeService;
 import org.thingsboard.server.dao.entityview.EntityViewService;
 import org.thingsboard.server.dao.nosql.CassandraStatementTask;
 import org.thingsboard.server.dao.nosql.TbResultSetFuture;
-import org.thingsboard.server.dao.ota.OtaPackageService;
+import org.thingsboard.server.dao.queue.QueueStatsService;
 import org.thingsboard.server.dao.relation.RelationService;
-import org.thingsboard.server.dao.resource.ResourceService;
 import org.thingsboard.server.dao.rule.RuleChainService;
 import org.thingsboard.server.dao.tenant.TenantService;
 import org.thingsboard.server.dao.timeseries.TimeseriesService;
@@ -123,24 +118,6 @@ public interface TbContext {
     void enqueue(TbMsg msg, Runnable onSuccess, Consumer<Throwable> onFailure);
 
     /**
-     * Sends message to the nested rule chain.
-     * Fails processing of the message if the nested rule chain is not found.
-     *
-     * @param msg - the message
-     * @param ruleChainId - the id of a nested rule chain
-     */
-    void input(TbMsg msg, RuleChainId ruleChainId);
-
-    /**
-     * Sends message to the caller rule chain.
-     * Acknowledge the message if no caller rule chain is present in processing stack
-     *
-     * @param msg - the message
-     * @param relationType - the relation type that will be used to route messages in the caller rule chain
-     */
-    void output(TbMsg msg, String relationType);
-
-    /**
      * Puts new message to custom queue for processing
      *
      * @param msg - message
@@ -165,8 +142,6 @@ public interface TbContext {
 
     TbMsg newMsg(String queueName, String type, EntityId originator, TbMsgMetaData metaData, String data);
 
-    TbMsg newMsg(String queueName, String type, EntityId originator, CustomerId customerId, TbMsgMetaData metaData, String data);
-
     TbMsg transformMsg(TbMsg origMsg, String type, EntityId originator, TbMsgMetaData metaData, String data);
 
     TbMsg customerCreatedMsg(Customer customer, RuleNodeId ruleNodeId);
@@ -177,8 +152,6 @@ public interface TbContext {
 
     // TODO: Does this changes the message?
     TbMsg alarmActionMsg(Alarm alarm, RuleNodeId ruleNodeId, String action);
-
-    void onEdgeEventUpdate(TenantId tenantId, EdgeId edgeId);
 
     /*
      *
@@ -208,8 +181,6 @@ public interface TbContext {
 
     DeviceService getDeviceService();
 
-    TbClusterService getClusterService();
-
     DashboardService getDashboardService();
 
     RuleEngineAlarmService getAlarmService();
@@ -226,15 +197,9 @@ public interface TbContext {
 
     EntityViewService getEntityViewService();
 
-    ResourceService getResourceService();
-
-    OtaPackageService getOtaPackageService();
-
     RuleEngineDeviceProfileCache getDeviceProfileCache();
 
-    EdgeService getEdgeService();
-
-    EdgeEventService getEdgeEventService();
+    ListeningExecutor getJsExecutor();
 
     ListeningExecutor getMailExecutor();
 
@@ -244,11 +209,13 @@ public interface TbContext {
 
     ListeningExecutor getExternalCallExecutor();
 
-    MailService getMailService(boolean isSystem);
+    MailService getMailService();
 
     SmsService getSmsService();
 
     SmsSenderFactory getSmsSenderFactory();
+
+    QueueStatsService getQueueStatsService();
 
     ScriptEngine createJsScriptEngine(String script, String... argNames);
 
@@ -264,9 +231,7 @@ public interface TbContext {
 
     CassandraCluster getCassandraCluster();
 
-    TbResultSetFuture submitCassandraReadTask(CassandraStatementTask task);
-
-    TbResultSetFuture submitCassandraWriteTask(CassandraStatementTask task);
+    TbResultSetFuture submitCassandraTask(CassandraStatementTask task);
 
     PageData<RuleNodeState> findRuleNodeStates(PageLink pageLink);
 

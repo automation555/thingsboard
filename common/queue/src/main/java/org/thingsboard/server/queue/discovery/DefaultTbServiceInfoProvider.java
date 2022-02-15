@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,25 +17,17 @@ package org.thingsboard.server.queue.discovery;
 
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
-import org.thingsboard.server.common.data.TbTransportService;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.msg.queue.ServiceType;
-import org.thingsboard.server.gen.transport.TransportProtos;
 import org.thingsboard.server.gen.transport.TransportProtos.ServiceInfo;
-import org.thingsboard.server.queue.settings.TbQueueRuleEngineSettings;
-import org.thingsboard.server.queue.settings.TbRuleEngineQueueConfiguration;
-import org.thingsboard.server.queue.util.AfterContextReady;
 
 import javax.annotation.PostConstruct;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -57,11 +49,6 @@ public class DefaultTbServiceInfoProvider implements TbServiceInfoProvider {
     @Getter
     @Value("${service.tenant_id:}")
     private String tenantIdStr;
-
-    @Autowired(required = false)
-    private TbQueueRuleEngineSettings ruleEngineSettings;
-    @Autowired
-    private ApplicationContext applicationContext;
 
     private List<ServiceType> serviceTypes;
     private ServiceInfo serviceInfo;
@@ -88,37 +75,14 @@ public class DefaultTbServiceInfoProvider implements TbServiceInfoProvider {
         UUID tenantId;
         if (!StringUtils.isEmpty(tenantIdStr)) {
             tenantId = UUID.fromString(tenantIdStr);
-            isolatedTenant = TenantId.fromUUID(tenantId);
+            isolatedTenant = new TenantId(tenantId);
         } else {
             tenantId = TenantId.NULL_UUID;
         }
         builder.setTenantIdMSB(tenantId.getMostSignificantBits());
         builder.setTenantIdLSB(tenantId.getLeastSignificantBits());
 
-        if (serviceTypes.contains(ServiceType.TB_RULE_ENGINE) && ruleEngineSettings != null) {
-            for (TbRuleEngineQueueConfiguration queue : ruleEngineSettings.getQueues()) {
-                TransportProtos.QueueInfo queueInfo = TransportProtos.QueueInfo.newBuilder()
-                        .setName(queue.getName())
-                        .setTopic(queue.getTopic())
-                        .setPartitions(queue.getPartitions()).build();
-                builder.addRuleEngineQueues(queueInfo);
-            }
-        }
-
         serviceInfo = builder.build();
-    }
-
-    @AfterContextReady
-    public void setTransports() {
-        serviceInfo = ServiceInfo.newBuilder(serviceInfo)
-                .addAllTransports(getTransportServices().stream()
-                        .map(TbTransportService::getName)
-                        .collect(Collectors.toSet()))
-                .build();
-    }
-
-    private Collection<TbTransportService> getTransportServices() {
-        return applicationContext.getBeansOfType(TbTransportService.class).values();
     }
 
     @Override

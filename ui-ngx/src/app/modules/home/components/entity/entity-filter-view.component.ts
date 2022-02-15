@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2022 The Thingsboard Authors
+/// Copyright © 2016-2021 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -105,16 +105,8 @@ export class EntityFilterViewComponent implements ControlValueAccessor {
               {deviceType});
           }
           break;
-        case AliasFilterType.edgeType:
-          const edgeType = this.filter.edgeType;
-          prefix = this.filter.edgeNameFilter;
-          if (prefix && prefix.length) {
-            this.filterDisplayValue = this.translate.instant('alias.filter-type-edge-type-and-name-description',
-              {edgeType, prefix});
-          } else {
-            this.filterDisplayValue = this.translate.instant('alias.filter-type-edge-type-description',
-              {edgeType});
-          }
+        case AliasFilterType.ruleEngineStats:
+            this.filterDisplayValue = this.translate.instant('alias.filter-rule-engine-stats-description');
           break;
         case AliasFilterType.entityViewType:
           const entityView = this.filter.entityViewType;
@@ -181,7 +173,6 @@ export class EntityFilterViewComponent implements ControlValueAccessor {
           break;
         case AliasFilterType.assetSearchQuery:
         case AliasFilterType.deviceSearchQuery:
-        case AliasFilterType.edgeSearchQuery:
         case AliasFilterType.entityViewSearchQuery:
           allEntitiesText = this.translate.instant('alias.all-entities');
           anyRelationText = this.translate.instant('alias.any-relation');
@@ -221,16 +212,6 @@ export class EntityFilterViewComponent implements ControlValueAccessor {
             const deviceTypesText = deviceTypesQuoted.join(', ');
             translationValues.deviceTypes = deviceTypesText;
             this.filterDisplayValue = this.translate.instant('alias.filter-type-device-search-query-description',
-              translationValues
-            );
-          } else if (this.filter.type === AliasFilterType.edgeSearchQuery) {
-            const edgeTypesQuoted = [];
-            this.filter.edgeTypes.forEach((filterEdgeType) => {
-              edgeTypesQuoted.push(`'${filterEdgeType}'`);
-            });
-            const edgeTypesText = edgeTypesQuoted.join(', ');
-            translationValues.edgeTypes = edgeTypesText;
-            this.filterDisplayValue = this.translate.instant('alias.filter-type-edge-search-query-description',
               translationValues
             );
           } else if (this.filter.type === AliasFilterType.entityViewSearchQuery) {

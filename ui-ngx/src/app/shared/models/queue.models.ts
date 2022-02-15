@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2022 The Thingsboard Authors
+/// Copyright © 2016-2021 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -14,9 +14,49 @@
 /// limitations under the License.
 ///
 
+import { BaseData, HasId } from '@shared/models/base-data';
+import { TenantId } from '@shared/models/id/tenant-id';
+import {QueueId} from "@shared/models/id/queue-id";
+
 export enum ServiceType {
   TB_CORE = 'TB_CORE',
   TB_RULE_ENGINE = 'TB_RULE_ENGINE',
   TB_TRANSPORT = 'TB_TRANSPORT',
   JS_EXECUTOR = 'JS_EXECUTOR'
 }
+
+export enum QueueSubmitStrategyTypes {
+  SEQUENTIAL_BY_ORIGINATOR = 'SEQUENTIAL_BY_ORIGINATOR',
+  SEQUENTIAL_BY_TENANT = 'SEQUENTIAL_BY_TENANT',
+  SEQUENTIAL = 'SEQUENTIAL',
+  BURST = 'BURST',
+  BATCH = 'BATCH'
+}
+
+export enum QueueProcessingStrategyTypes {
+  RETRY_FAILED_AND_TIMED_OUT = 'RETRY_FAILED_AND_TIMED_OUT',
+  SKIP_ALL_FAILURES = 'SKIP_ALL_FAILURES',
+  RETRY_ALL = 'RETRY_ALL',
+  RETRY_FAILED = 'RETRY_FAILED',
+  RETRY_TIMED_OUT = 'RETRY_TIMED_OUT'
+}
+
+export interface QueueInfo extends BaseData<QueueId> {
+  packProcessingTimeout: number;
+  partitions: number;
+  pollInterval: number;
+  processingStrategy: {
+    type: QueueProcessingStrategyTypes,
+    retries: number,
+    failurePercentage: number,
+    pauseBetweenRetries: number,
+    maxPauseBetweenRetries: number
+  };
+  submitStrategy: {
+    type: QueueSubmitStrategyTypes,
+    batchSize: number,
+  };
+  tenantId: TenantId;
+  topic: string;
+}
+

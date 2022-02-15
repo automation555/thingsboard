@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,29 @@
 package org.thingsboard.server.service.install;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.thingsboard.server.common.data.EntitySubtype;
 import org.thingsboard.server.common.data.Tenant;
+import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
+import org.thingsboard.server.common.data.queue.ProcessingStrategy;
+import org.thingsboard.server.common.data.queue.ProcessingStrategyType;
+import org.thingsboard.server.common.data.queue.Queue;
+import org.thingsboard.server.common.data.queue.SubmitStrategy;
+import org.thingsboard.server.common.data.queue.SubmitStrategyType;
 import org.thingsboard.server.dao.dashboard.DashboardService;
 import org.thingsboard.server.dao.device.DeviceProfileService;
 import org.thingsboard.server.dao.device.DeviceService;
+import org.thingsboard.server.dao.queue.QueueService;
 import org.thingsboard.server.dao.tenant.TenantService;
 import org.thingsboard.server.dao.usagerecord.ApiUsageStateService;
 import org.thingsboard.server.service.install.sql.SqlDbHelper;
+import org.thingsboard.server.service.queue.upgrade.TbQueueYmlRuleEngineSettings;
 
 import java.nio.charset.Charset;
 import java.nio.file.Files;
@@ -43,7 +52,6 @@ import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.thingsboard.server.service.install.DatabaseHelper.ADDITIONAL_INFO;
 import static org.thingsboard.server.service.install.DatabaseHelper.ASSIGNED_CUSTOMERS;
@@ -101,6 +109,11 @@ public class SqlDatabaseUpgradeService implements DatabaseEntitiesUpgradeService
     @Autowired
     private ApiUsageStateService apiUsageStateService;
 
+    @Autowired
+    private TbQueueYmlRuleEngineSettings ruleEngineSettings;
+
+    @Autowired
+    private QueueService queueService;
 
     @Override
     public void upgradeDatabase(String fromVersion) throws Exception {
@@ -391,7 +404,7 @@ public class SqlDatabaseUpgradeService implements DatabaseEntitiesUpgradeService
                             pageData = tenantService.findTenants(pageLink);
                             for (Tenant tenant : pageData.getData()) {
                                 try {
-                                    apiUsageStateService.createDefaultApiUsageState(tenant.getId(), null);
+                                    apiUsageStateService.createDefaultApiUsageState(tenant.getId());
                                 } catch (Exception e) {
                                 }
                                 List<EntitySubtype> deviceTypes = deviceService.findDeviceTypesByTenantId(tenant.getId()).get();
@@ -451,65 +464,69 @@ public class SqlDatabaseUpgradeService implements DatabaseEntitiesUpgradeService
                 try (Connection conn = DriverManager.getConnection(dbUrl, dbUserName, dbPassword)) {
                     log.info("Updating schema ...");
                     try {
-                        conn.createStatement().execute("ALTER TABLE rule_chain ADD COLUMN type varchar(255) DEFAULT 'CORE'"); //NOSONAR, ignoring because method used to execute thingsboard database upgrade script
-                    } catch (Exception ignored) {
-                    }
-                    schemaUpdateFile = Paths.get(installScripts.getDataDir(), "upgrade", "3.2.2", SCHEMA_UPDATE_SQL);
-                    loadSql(schemaUpdateFile, conn);
-                    log.info("Load Edge TTL functions ...");
-                    schemaUpdateFile = Paths.get(installScripts.getDataDir(), "upgrade", "3.2.2", "schema_update_ttl.sql");
-                    loadSql(schemaUpdateFile, conn);
-                    log.info("Edge TTL functions successfully loaded!");
-                    log.info("Updating indexes and TTL procedure for event table...");
-                    schemaUpdateFile = Paths.get(installScripts.getDataDir(), "upgrade", "3.2.2", "schema_update_event.sql");
-                    loadSql(schemaUpdateFile, conn);
-                    log.info("Updating schema settings...");
-                    conn.createStatement().execute("UPDATE tb_schema_settings SET schema_version = 3003000;");
-                    log.info("Schema updated.");
-                } catch (Exception e) {
-                    log.error("Failed updating schema!!!", e);
-                }
-                break;
-            case "3.3.2":
-                try (Connection conn = DriverManager.getConnection(dbUrl, dbUserName, dbPassword)) {
-                    log.info("Updating schema ...");
-                    schemaUpdateFile = Paths.get(installScripts.getDataDir(), "upgrade", "3.3.2", SCHEMA_UPDATE_SQL);
-                    loadSql(schemaUpdateFile, conn);
-                    try {
-                        conn.createStatement().execute("ALTER TABLE alarm ADD COLUMN propagate_to_owner boolean DEFAULT false;"); //NOSONAR, ignoring because method used to execute thingsboard database upgrade script
-                        conn.createStatement().execute("ALTER TABLE alarm ADD COLUMN propagate_to_tenant boolean DEFAULT false;"); //NOSONAR, ignoring because method used to execute thingsboard database upgrade script
-                    } catch (Exception ignored) {
+                        conn.createStatement().execute("CREATE TABLE IF NOT EXISTS queue ( " +
+                                "id uuid NOT NULL CONSTRAINT queue_pkey PRIMARY KEY, " +
+                                "created_time bigint NOT NULL, " +
+                                "tenant_id uuid, " +
+                                "name varchar(255), " +
+                                "topic varchar(255), " +
+                                "poll_interval int, " +
+                                "partitions int, " +
+                                "pack_processing_timeout bigint, " +
+                                "submit_strategy varchar(255), " +
+                                "processing_strategy varchar(255), " +
+                                "CONSTRAINT queue_name_unq_key UNIQUE (tenant_id, name), " +
+                                "CONSTRAINT queue_topic_unq_key UNIQUE (tenant_id, topic) " +
+                                ");");
+                    } catch (Exception e) {
                     }
 
                     try {
-                        conn.createStatement().execute("insert into entity_alarm(tenant_id, entity_id, created_time, alarm_type, customer_id, alarm_id)" +
-                                " select tenant_id, originator_id, created_time, type, customer_id, id from alarm ON CONFLICT DO NOTHING;");
-                        conn.createStatement().execute("insert into entity_alarm(tenant_id, entity_id, created_time, alarm_type, customer_id, alarm_id)" +
-                                " select a.tenant_id, r.from_id, created_time, type, customer_id, id" +
-                                " from alarm a inner join relation r on r.relation_type_group = 'ALARM' and r.relation_type = 'ANY' and a.id = r.to_id ON CONFLICT DO NOTHING;");
-                        conn.createStatement().execute("delete from relation r where r.relation_type_group = 'ALARM';");
+                        if (!CollectionUtils.isEmpty(ruleEngineSettings.getQueues())) {
+                            ruleEngineSettings.getQueues().forEach(queueSettings -> {
+                                Queue queue = new Queue();
+                                queue.setTenantId(TenantId.SYS_TENANT_ID);
+                                queue.setName(queueSettings.getName());
+                                queue.setTopic(queueSettings.getTopic());
+                                queue.setPollInterval(queueSettings.getPollInterval());
+                                queue.setPartitions(queueSettings.getPartitions());
+                                queue.setPackProcessingTimeout(queueSettings.getPackProcessingTimeout());
+                                SubmitStrategy submitStrategy = new SubmitStrategy();
+                                submitStrategy.setBatchSize(queueSettings.getSubmitStrategy().getBatchSize());
+                                submitStrategy.setType(SubmitStrategyType.valueOf(queueSettings.getSubmitStrategy().getType()));
+                                queue.setSubmitStrategy(submitStrategy);
+                                ProcessingStrategy processingStrategy = new ProcessingStrategy();
+                                processingStrategy.setType(ProcessingStrategyType.valueOf(queueSettings.getProcessingStrategy().getType()));
+                                processingStrategy.setRetries(queueSettings.getProcessingStrategy().getRetries());
+                                processingStrategy.setFailurePercentage(queueSettings.getProcessingStrategy().getFailurePercentage());
+                                processingStrategy.setPauseBetweenRetries(queueSettings.getProcessingStrategy().getPauseBetweenRetries());
+                                processingStrategy.setMaxPauseBetweenRetries(queueSettings.getProcessingStrategy().getMaxPauseBetweenRetries());
+                                queue.setProcessingStrategy(processingStrategy);
+                                queueService.saveQueue(queue);
+                            });
+                        } else {
+                            systemDataLoaderService.createQueues();
+                        }
                     } catch (Exception e) {
-                        log.error("Failed to update alarm relations!!!", e);
                     }
 
-                    log.info("Updating lwm2m device profiles ...");
                     try {
-                        schemaUpdateFile = Paths.get(installScripts.getDataDir(), "upgrade", "3.3.2", "schema_update_lwm2m_bootstrap.sql");
-                        loadSql(schemaUpdateFile, conn);
-                        log.info("Updating server`s public key from HexDec to Base64 in profile for LWM2M...");
-                        conn.createStatement().execute("call update_profile_bootstrap();");
-                        log.info("Server`s public key from HexDec to Base64 in profile for LWM2M updated.");
-                        log.info("Updating client`s public key and secret key from HexDec to Base64 for LWM2M...");
-                        conn.createStatement().execute("call update_device_credentials_to_base64_and_bootstrap();");
-                        log.info("Client`s public key and secret key from HexDec to Base64 for LWM2M updated.");
+                        conn.createStatement().execute("CREATE TABLE IF NOT EXISTS queue_stats ( " +
+                                "id uuid NOT NULL CONSTRAINT queue_pkey PRIMARY KEY, " +
+                                "created_time bigint NOT NULL, " +
+                                "tenant_id uuid NOT NULL, " +
+                                "name varchar(255) NOT NULL, " +
+                                "queue_id uuid NOT NULL, " +
+                                "CONSTRAINT queue_stats_name_unq_key UNIQUE (tenant_id, name), " +
+                                "CONSTRAINT queue_stats_queue_id_unq_key UNIQUE (tenant_id, queue_id));");
                     } catch (Exception e) {
-                        log.error("Failed to update lwm2m profiles!!!", e);
                     }
-                    log.info("Updating schema settings...");
-                    conn.createStatement().execute("UPDATE tb_schema_settings SET schema_version = 3003003;");
+
+                    try {
+                        conn.createStatement().execute("UPDATE tb_schema_settings SET schema_version = 3003000;");
+                    } catch (Exception e) {
+                    }
                     log.info("Schema updated.");
-                } catch (Exception e) {
-                    log.error("Failed updating schema!!!", e);
                 }
                 break;
             default:
@@ -519,23 +536,8 @@ public class SqlDatabaseUpgradeService implements DatabaseEntitiesUpgradeService
 
     private void loadSql(Path sqlFile, Connection conn) throws Exception {
         String sql = new String(Files.readAllBytes(sqlFile), Charset.forName("UTF-8"));
-        Statement st = conn.createStatement();
-        st.setQueryTimeout((int) TimeUnit.HOURS.toSeconds(3));
-        st.execute(sql);//NOSONAR, ignoring because method used to execute thingsboard database upgrade script
-        printWarnings(st);
+        conn.createStatement().execute(sql); //NOSONAR, ignoring because method used to execute thingsboard database upgrade script
         Thread.sleep(5000);
-    }
-
-    protected void printWarnings(Statement statement) throws SQLException {
-        SQLWarning warnings = statement.getWarnings();
-        if (warnings != null) {
-            log.info("{}", warnings.getMessage());
-            SQLWarning nextWarning = warnings.getNextWarning();
-            while (nextWarning != null) {
-                log.info("{}", nextWarning.getMessage());
-                nextWarning = nextWarning.getNextWarning();
-            }
-        }
     }
 
     protected boolean isOldSchema(Connection conn, long fromVersion) {

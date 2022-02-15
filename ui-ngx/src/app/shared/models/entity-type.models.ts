@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2022 The Thingsboard Authors
+/// Copyright © 2016-2021 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -17,6 +17,22 @@
 import { TenantId } from './id/tenant-id';
 import { BaseData, HasId } from '@shared/models/base-data';
 
+///
+/// Copyright © 2016-2019 The Thingsboard Authors
+///
+/// Licensed under the Apache License, Version 2.0 (the "License");
+/// you may not use this file except in compliance with the License.
+/// You may obtain a copy of the License at
+///
+///     http://www.apache.org/licenses/LICENSE-2.0
+///
+/// Unless required by applicable law or agreed to in writing, software
+/// distributed under the License is distributed on an "AS IS" BASIS,
+/// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+/// See the License for the specific language governing permissions and
+/// limitations under the License.
+///
+
 export enum EntityType {
   TENANT = 'TENANT',
   TENANT_PROFILE = 'TENANT_PROFILE',
@@ -29,14 +45,12 @@ export enum EntityType {
   ALARM = 'ALARM',
   RULE_CHAIN = 'RULE_CHAIN',
   RULE_NODE = 'RULE_NODE',
-  EDGE = 'EDGE',
   ENTITY_VIEW = 'ENTITY_VIEW',
   WIDGETS_BUNDLE = 'WIDGETS_BUNDLE',
   WIDGET_TYPE = 'WIDGET_TYPE',
   API_USAGE_STATE = 'API_USAGE_STATE',
-  TB_RESOURCE = 'TB_RESOURCE',
-  OTA_PACKAGE = 'OTA_PACKAGE',
-  RPC = 'RPC'
+  QUEUE = 'QUEUE',
+  QUEUE_STATS = 'QUEUE_STATS'
 }
 
 export enum AliasEntityType {
@@ -164,20 +178,6 @@ export const entityTypeTranslations = new Map<EntityType | AliasEntityType, Enti
       }
     ],
     [
-      EntityType.EDGE,
-      {
-        type: 'entity.type-edge',
-        typePlural: 'entity.type-edges',
-        list: 'entity.list-of-edges',
-        nameStartsWith: 'entity.edge-name-starts-with',
-        details: 'edge.edge-details',
-        add: 'edge.add',
-        noEntities: 'edge.no-edges-text',
-        search: 'edge.search',
-        selectedEntities: 'edge.selected-edges'
-      }
-    ],
-    [
       EntityType.ENTITY_VIEW,
       {
         type: 'entity.type-entity-view',
@@ -258,6 +258,22 @@ export const entityTypeTranslations = new Map<EntityType | AliasEntityType, Enti
       }
     ],
     [
+      EntityType.QUEUE,
+      {
+        add: 'queue.add',
+        search: 'queue.search',
+        details: 'queue.details',
+        selectedEntities: 'queue.selected-queues'
+      }
+    ],
+    [
+      EntityType.QUEUE_STATS,
+      {
+        type: 'entity.type-queue-stats',
+        list: 'entity.type-queue-stats'
+      }
+    ],
+    [
       AliasEntityType.CURRENT_CUSTOMER,
       {
         type: 'entity.type-current-customer',
@@ -283,28 +299,6 @@ export const entityTypeTranslations = new Map<EntityType | AliasEntityType, Enti
       {
         type: 'entity.type-current-user-owner',
         list: 'entity.type-current-user-owner'
-      }
-    ],
-    [
-      EntityType.TB_RESOURCE,
-      {
-        type: 'entity.type-tb-resource',
-        details: 'resource.resource-library-details',
-        add: 'resource.add',
-        noEntities: 'resource.no-resource-text',
-        search: 'resource.search',
-        selectedEntities: 'resource.selected-resources'
-      }
-    ],
-    [
-      EntityType.OTA_PACKAGE,
-      {
-        type: 'entity.type-ota-package',
-        details: 'ota-update.ota-update-details',
-        add: 'ota-update.add',
-        noEntities: 'ota-update.no-packages-text',
-        search: 'ota-update.search',
-        selectedEntities: 'ota-update.selected-package'
       }
     ]
   ]
@@ -355,12 +349,6 @@ export const entityTypeResources = new Map<EntityType, EntityTypeResource<BaseDa
       }
     ],
     [
-      EntityType.EDGE,
-      {
-        helpLinkId: 'edges'
-      }
-    ],
-    [
       EntityType.ENTITY_VIEW,
       {
         helpLinkId: 'entityViews'
@@ -383,37 +371,9 @@ export const entityTypeResources = new Map<EntityType, EntityTypeResource<BaseDa
       {
         helpLinkId: 'widgetsBundles'
       }
-    ],
-    [
-      EntityType.TB_RESOURCE,
-      {
-        helpLinkId: 'resources'
-      }
-    ],
-    [
-      EntityType.OTA_PACKAGE,
-      {
-        helpLinkId: 'otaUpdates'
-      }
     ]
   ]
 );
-
-export const baseDetailsPageByEntityType = new Map<EntityType, string>([
-  [EntityType.TENANT, '/tenants'],
-  [EntityType.TENANT_PROFILE, '/tenantProfiles'],
-  [EntityType.CUSTOMER, '/customers'],
-  [EntityType.USER, '/users'],
-  [EntityType.DASHBOARD, '/dashboards'],
-  [EntityType.ASSET, '/assets'],
-  [EntityType.DEVICE, '/devices'],
-  [EntityType.DEVICE_PROFILE, '/deviceProfiles'],
-  [EntityType.RULE_CHAIN, '/ruleChains'],
-  [EntityType.EDGE, '/edgeInstances'],
-  [EntityType.ENTITY_VIEW, '/entityViews'],
-  [EntityType.TB_RESOURCE, '/settings/resources-library'],
-  [EntityType.OTA_PACKAGE, '/otaUpdates']
-]);
 
 export interface EntitySubtype {
   tenantId: TenantId;

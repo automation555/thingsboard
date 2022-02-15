@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import org.thingsboard.common.util.ThingsBoardThreadFactory;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.msg.queue.ServiceType;
 import org.thingsboard.server.queue.discovery.PartitionService;
+import org.thingsboard.server.queue.settings.TbKafkaSettings;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -69,7 +70,7 @@ public class TbKafkaConsumerStatsService {
         this.adminClient = AdminClient.create(kafkaSettings.toAdminProps());
         this.statsPrintScheduler = Executors.newSingleThreadScheduledExecutor(ThingsBoardThreadFactory.forName("kafka-consumer-stats"));
 
-        Properties consumerProps = kafkaSettings.toConsumerProps(null);
+        Properties consumerProps = kafkaSettings.toConsumerProps();
         consumerProps.put(ConsumerConfig.CLIENT_ID_CONFIG, "consumer-stats-loader-client");
         consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "consumer-stats-loader-client-group");
         this.consumer = new KafkaConsumer<>(consumerProps);

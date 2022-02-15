@@ -1,6 +1,6 @@
 <!--
 
-    Copyright © 2016-2022 The Thingsboard Authors
+    Copyright © 2016-2021 The Thingsboard Authors
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -53,8 +53,6 @@
       </tb-entity-type-select>
       <mat-form-field class="mat-block">
         <mat-label translate>entity.name-starts-with</mat-label>
-        <mat-icon class="mat-primary" aria-hidden="false" aria-label="help-icon" matSuffix style="cursor:pointer;"
-                  matTooltip="{{'entity.help-text' | translate }}">help</mat-icon>
         <input matInput formControlName="entityNameFilter" required>
         <mat-error *ngIf="filterFormGroup.get('entityNameFilter').hasError('required')">
           {{ 'entity.entity-name-filter-required' | translate }}
@@ -89,8 +87,6 @@
       </tb-entity-subtype-autocomplete>
       <mat-form-field class="mat-block">
         <mat-label translate>asset.name-starts-with</mat-label>
-        <mat-icon class="mat-primary" aria-hidden="false" aria-label="help-icon" matSuffix style="cursor:pointer;"
-                  matTooltip="{{'asset.help-text' | translate }}">help</mat-icon>
         <input matInput formControlName="assetNameFilter">
       </mat-form-field>
     </ng-template>
@@ -101,10 +97,10 @@
       </tb-entity-subtype-autocomplete>
       <mat-form-field class="mat-block">
         <mat-label translate>device.name-starts-with</mat-label>
-        <mat-icon class="mat-primary" aria-hidden="false" aria-label="help-icon" matSuffix style="cursor:pointer;"
-                  matTooltip="{{'device.help-text' | translate }}">help</mat-icon>
         <input matInput formControlName="deviceNameFilter">
       </mat-form-field>
+    </ng-template>
+    <ng-template [ngSwitchCase]="aliasFilterType.ruleEngineStats">
     </ng-template>
     <ng-template [ngSwitchCase]="aliasFilterType.entityViewType">
       <tb-entity-subtype-autocomplete required
@@ -113,19 +109,7 @@
       </tb-entity-subtype-autocomplete>
       <mat-form-field class="mat-block">
         <mat-label translate>entity-view.name-starts-with</mat-label>
-        <mat-icon class="mat-primary" aria-hidden="false" aria-label="help-icon" matSuffix style="cursor:pointer;"
-                  matTooltip="{{'entity-view.help-text' | translate }}">help</mat-icon>
         <input matInput formControlName="entityViewNameFilter">
-      </mat-form-field>
-    </ng-template>
-    <ng-template [ngSwitchCase]="aliasFilterType.edgeType">
-      <tb-entity-subtype-autocomplete required
-                                      formControlName="edgeType"
-                                      [entityType]="entityType.EDGE">
-      </tb-entity-subtype-autocomplete>
-      <mat-form-field class="mat-block">
-        <mat-label translate>edge.name-starts-with</mat-label>
-        <input matInput formControlName="edgeNameFilter">
       </mat-form-field>
     </ng-template>
     <ng-template [ngSwitchCase]="aliasFilterType.relationsQuery">
@@ -194,7 +178,6 @@
     </ng-template>
     <ng-template [ngSwitchCase]="entityFilterFormGroup.get('type').value === aliasFilterType.assetSearchQuery ||
                                  entityFilterFormGroup.get('type').value === aliasFilterType.deviceSearchQuery ||
-                                 entityFilterFormGroup.get('type').value === aliasFilterType.edgeSearchQuery ||
                                  entityFilterFormGroup.get('type').value === aliasFilterType.entityViewSearchQuery ?
                                  entityFilterFormGroup.get('type').value : ''">
       <label class="tb-small">{{ 'alias.root-entity' | translate }}</label>
@@ -272,14 +255,6 @@
         required
         [entityType]="entityType.DEVICE"
         formControlName="deviceTypes">
-      </tb-entity-subtype-list>
-    </ng-template>
-    <ng-template [ngSwitchCase]="aliasFilterType.edgeSearchQuery">
-      <div class="mat-caption tb-required" style="color: rgba(0,0,0,0.57);" translate>edge.edge-types</div>
-      <tb-entity-subtype-list
-        required
-        [entityType]="entityType.EDGE"
-        formControlName="edgeTypes">
       </tb-entity-subtype-list>
     </ng-template>
     <ng-template [ngSwitchCase]="aliasFilterType.entityViewSearchQuery">

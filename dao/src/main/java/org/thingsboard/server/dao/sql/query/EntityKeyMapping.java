@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 package org.thingsboard.server.dao.sql.query;
 
 import lombok.Data;
-import org.apache.commons.lang3.StringUtils;
+import org.springframework.util.StringUtils;
 import org.thingsboard.server.common.data.DataConstants;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.query.BooleanFilterPredicate;
@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -72,7 +73,6 @@ public class EntityKeyMapping {
     public static final String ZIP = "zip";
     public static final String PHONE = "phone";
     public static final String ADDITIONAL_INFO = "additionalInfo";
-    public static final String RELATED_PARENT_ID = "parentId";
 
     public static final List<String> typedEntityFields = Arrays.asList(CREATED_TIME, ENTITY_TYPE, NAME, TYPE, ADDITIONAL_INFO);
     public static final List<String> widgetEntityFields = Arrays.asList(CREATED_TIME, ENTITY_TYPE, NAME);
@@ -80,10 +80,11 @@ public class EntityKeyMapping {
     public static final List<String> dashboardEntityFields = Arrays.asList(CREATED_TIME, ENTITY_TYPE, TITLE);
     public static final List<String> labeledEntityFields = Arrays.asList(CREATED_TIME, ENTITY_TYPE, NAME, TYPE, LABEL, ADDITIONAL_INFO);
     public static final List<String> contactBasedEntityFields = Arrays.asList(CREATED_TIME, ENTITY_TYPE, EMAIL, TITLE, COUNTRY, STATE, CITY, ADDRESS, ADDRESS_2, ZIP, PHONE, ADDITIONAL_INFO);
+    public static final List<String> queueEntityFields = Arrays.asList(CREATED_TIME, NAME);
 
     public static final Set<String> apiUsageStateEntityFields =  new HashSet<>(Arrays.asList(CREATED_TIME, ENTITY_TYPE, NAME));
     public static final Set<String> commonEntityFieldsSet = new HashSet<>(commonEntityFields);
-    public static final Set<String> relationQueryEntityFieldsSet = new HashSet<>(Arrays.asList(CREATED_TIME, ENTITY_TYPE, NAME, TYPE, LABEL, FIRST_NAME, LAST_NAME, EMAIL, REGION, TITLE, COUNTRY, STATE, CITY, ADDRESS, ADDRESS_2, ZIP, PHONE, ADDITIONAL_INFO, RELATED_PARENT_ID));
+    public static final Set<String> relationQueryEntityFieldsSet = new HashSet<>(Arrays.asList(CREATED_TIME, ENTITY_TYPE, NAME, TYPE, LABEL, FIRST_NAME, LAST_NAME, EMAIL, REGION, TITLE, COUNTRY, STATE, CITY, ADDRESS, ADDRESS_2, ZIP, PHONE, ADDITIONAL_INFO));
 
     static {
         allowedEntityFieldMap.put(EntityType.DEVICE, new HashSet<>(labeledEntityFields));
@@ -102,6 +103,7 @@ public class EntityKeyMapping {
         allowedEntityFieldMap.put(EntityType.WIDGET_TYPE, new HashSet<>(widgetEntityFields));
         allowedEntityFieldMap.put(EntityType.WIDGETS_BUNDLE, new HashSet<>(widgetEntityFields));
         allowedEntityFieldMap.put(EntityType.API_USAGE_STATE, apiUsageStateEntityFields);
+        allowedEntityFieldMap.put(EntityType.QUEUE_STATS, new HashSet<>(queueEntityFields));
 
         entityFieldColumnMap.put(CREATED_TIME, ModelConstants.CREATED_TIME_PROPERTY);
         entityFieldColumnMap.put(ENTITY_TYPE, ModelConstants.ENTITY_TYPE_PROPERTY);
@@ -121,7 +123,6 @@ public class EntityKeyMapping {
         entityFieldColumnMap.put(ZIP, ModelConstants.ZIP_PROPERTY);
         entityFieldColumnMap.put(PHONE, ModelConstants.PHONE_PROPERTY);
         entityFieldColumnMap.put(ADDITIONAL_INFO, ModelConstants.ADDITIONAL_INFO_PROPERTY);
-        entityFieldColumnMap.put(RELATED_PARENT_ID, "parent_id");
 
         Map<String, String> contactBasedAliases = new HashMap<>();
         contactBasedAliases.put(NAME, TITLE);
@@ -245,21 +246,22 @@ public class EntityKeyMapping {
         } else {
             entityTypeStr = "'" + entityType.name() + "'";
         }
-        ctx.addStringParameter(getKeyId(), entityKey.getKey());
-        String filterQuery = toQueries(ctx, entityFilter.getType())
-                .filter(StringUtils::isNotEmpty)
-                .collect(Collectors.joining(" and "));
-        if (StringUtils.isNotEmpty(filterQuery)) {
+        ctx.addStringParameter(alias + "_key_id", entityKey.getKey());
+        String filterQuery = toQueries(ctx, entityFilter.getType()).filter(Objects::nonNull).collect(
+                Collectors.joining(" and "));
+        if (StringUtils.isEmpty(filterQuery)) {
+            filterQuery = "";
+        } else {
             filterQuery = " AND (" + filterQuery + ")";
         }
         if (entityKey.getType().equals(EntityKeyType.TIME_SERIES)) {
-            String join = (hasFilter() && hasFilterValues(ctx)) ? "inner join" : "left join";
+            String join = hasFilter() ? "inner join" : "left join";
             return String.format("%s ts_kv_latest %s ON %s.entity_id=entities.id AND %s.key = (select key_id from ts_kv_dictionary where key = :%s_key_id) %s",
                     join, alias, alias, alias, alias, filterQuery);
         } else {
             String query;
             if (!entityKey.getType().equals(EntityKeyType.ATTRIBUTE)) {
-                String join = (hasFilter() && hasFilterValues(ctx)) ? "inner join" : "left join";
+                String join = hasFilter() ? "inner join" : "left join";
                 query = String.format("%s attribute_kv %s ON %s.entity_id=entities.id AND %s.entity_type=%s AND %s.attribute_key=:%s_key_id ",
                         join, alias, alias, alias, entityTypeStr, alias, alias);
                 String scope;
@@ -272,7 +274,7 @@ public class EntityKeyMapping {
                 }
                 query = String.format("%s AND %s.attribute_type='%s' %s", query, alias, scope, filterQuery);
             } else {
-                String join = (hasFilter() && hasFilterValues(ctx)) ? "join LATERAL" : "left join LATERAL";
+                String join = hasFilter() ? "join LATERAL" : "left join LATERAL";
                 query = String.format("%s (select * from attribute_kv %s WHERE %s.entity_id=entities.id AND %s.entity_type=%s AND %s.attribute_key=:%s_key_id %s " +
                                 "ORDER BY %s.last_update_ts DESC limit 1) as %s ON true",
                         join, alias, alias, alias, entityTypeStr, alias, alias, filterQuery, alias, alias);
@@ -281,33 +283,20 @@ public class EntityKeyMapping {
         }
     }
 
-    private boolean hasFilterValues(QueryContext ctx) {
-        return Arrays.stream(ctx.getParameterNames()).anyMatch(parameterName -> {
-            return !parameterName.equals(getKeyId()) && parameterName.startsWith(alias);
-        });
-    }
-
-    private String getKeyId() {
-        return alias + "_key_id";
-    }
-
     public static String buildSelections(List<EntityKeyMapping> mappings, EntityFilterType filterType, EntityType entityType) {
         return mappings.stream().map(mapping -> mapping.toSelection(filterType, entityType)).collect(
                 Collectors.joining(", "));
     }
 
     public static String buildLatestJoins(QueryContext ctx, EntityFilter entityFilter, EntityType entityType, List<EntityKeyMapping> latestMappings, boolean countQuery) {
-        return latestMappings.stream()
-                .filter(mapping -> !countQuery || mapping.hasFilter())
-                .map(mapping -> mapping.toLatestJoin(ctx, entityFilter, entityType))
-                .collect(Collectors.joining(" "));
+        return latestMappings.stream().filter(mapping -> !countQuery || mapping.hasFilter())
+                .map(mapping -> mapping.toLatestJoin(ctx, entityFilter, entityType)).collect(
+                        Collectors.joining(" "));
     }
 
     public static String buildQuery(QueryContext ctx, List<EntityKeyMapping> mappings, EntityFilterType filterType) {
-        return mappings.stream()
-                .flatMap(mapping -> mapping.toQueries(ctx, filterType))
-                .filter(StringUtils::isNotEmpty)
-                .collect(Collectors.joining(" AND "));
+        return mappings.stream().flatMap(mapping -> mapping.toQueries(ctx, filterType)).filter(Objects::nonNull).collect(
+                Collectors.joining(" AND "));
     }
 
     public static List<EntityKeyMapping> prepareKeyMapping(EntityDataQuery query) {
@@ -474,8 +463,9 @@ public class EntityKeyMapping {
                                               ComplexFilterPredicate predicate, EntityFilterType filterType) {
         String result = predicate.getPredicates().stream()
                 .map(keyFilterPredicate -> this.buildPredicateQuery(ctx, alias, key, keyFilterPredicate, filterType))
-                .filter(StringUtils::isNotEmpty)
-                .collect(Collectors.joining(" " + predicate.getOperation().name() + " "));
+                .filter(Objects::nonNull).collect(Collectors.joining(
+                        " " + predicate.getOperation().name() + " "
+                ));
         if (!result.trim().isEmpty()) {
             result = "( " + result + " )";
         }
@@ -531,9 +521,6 @@ public class EntityKeyMapping {
         String operationField = field;
         String paramName = getNextParameterName(field);
         String value = stringFilterPredicate.getValue().getValue();
-        if (value.isEmpty()) {
-            return "";
-        }
         String stringOperationQuery = "";
         if (stringFilterPredicate.isIgnoreCase()) {
             value = value.toLowerCase();
@@ -541,66 +528,34 @@ public class EntityKeyMapping {
         }
         switch (stringFilterPredicate.getOperation()) {
             case EQUAL:
-                stringOperationQuery = String.format("%s = :%s)", operationField, paramName);
+                stringOperationQuery = String.format("%s = :%s) or (%s is null and :%s = '')", operationField, paramName, operationField, paramName);
                 break;
             case NOT_EQUAL:
-                stringOperationQuery = String.format("%s != :%s or %s is null)", operationField, paramName, operationField);
+                stringOperationQuery = String.format("%s != :%s) or (%s is null and :%s != '')", operationField, paramName, operationField, paramName);
                 break;
             case STARTS_WITH:
                 value += "%";
-                stringOperationQuery = String.format("%s like :%s)", operationField, paramName);
+                stringOperationQuery = String.format("%s like :%s) or (%s is null and :%s = '%%')", operationField, paramName, operationField, paramName);
                 break;
             case ENDS_WITH:
                 value = "%" + value;
-                stringOperationQuery = String.format("%s like :%s)", operationField, paramName);
+                stringOperationQuery = String.format("%s like :%s) or (%s is null and :%s = '%%')", operationField, paramName, operationField, paramName);
                 break;
             case CONTAINS:
-                value = "%" + value + "%";
-                stringOperationQuery = String.format("%s like :%s)", operationField, paramName);
+                if (value.length() > 0) {
+                    value = "%" + value + "%";
+                }
+                stringOperationQuery = String.format("%s like :%s) or (%s is null and :%s = '')", operationField, paramName, operationField, paramName);
                 break;
             case NOT_CONTAINS:
-                value = "%" + value + "%";
-                stringOperationQuery = String.format("%s not like :%s or %s is null)", operationField, paramName, operationField);
-                break;
-            case IN:
-                stringOperationQuery = String.format("%s in (:%s))", operationField, paramName);
-                break;
-            case NOT_IN:
-                stringOperationQuery = String.format("%s not in (:%s))", operationField, paramName);
+                if (value.length() > 0) {
+                    value = "%" + value + "%";
+                }
+                stringOperationQuery = String.format("%s not like :%s) or (%s is null and :%s != '')", operationField, paramName, operationField, paramName);
                 break;
         }
-        switch (stringFilterPredicate.getOperation()) {
-            case IN:
-            case NOT_IN:
-                ctx.addStringListParameter(paramName, getListValuesWithoutQuote(value));
-                break;
-            default:
-                ctx.addStringParameter(paramName, value);
-        }
+        ctx.addStringParameter(paramName, value);
         return String.format("((%s is not null and %s)", field, stringOperationQuery);
-    }
-
-    protected List<String> getListValuesWithoutQuote(String value) {
-        List<String> splitValues = List.of(value.trim().split("\\s*,\\s*"));
-        List<String> result = new ArrayList<>();
-        char lastWayInputValue = '#';
-        for (String str : splitValues) {
-            char startWith = str.charAt(0);
-            char endWith = str.charAt(str.length() - 1);
-
-            // if first value is not quote, so we return values after split
-            if (startWith != '\'' && startWith != '"') return splitValues;
-
-            // if value is not in quote, so we return values after split
-            if (startWith != endWith) return splitValues;
-
-            // if different way values, so don't replace quote and return values after split
-            if (lastWayInputValue != '#' && startWith != lastWayInputValue) return splitValues;
-
-            result.add(str.substring(1, str.length() - 1));
-            lastWayInputValue = startWith;
-        }
-        return result;
     }
 
     private String buildNumericPredicateQuery(QueryContext ctx, String field, NumericFilterPredicate numericFilterPredicate) {
