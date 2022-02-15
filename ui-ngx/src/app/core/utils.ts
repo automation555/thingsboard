@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2022 The Thingsboard Authors
+/// Copyright © 2016-2021 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import { finalize, share } from 'rxjs/operators';
 import { Datasource } from '@app/shared/models/widget.models';
 import { EntityId } from '@shared/models/id/entity-id';
 import { NULL_UUID } from '@shared/models/id/has-uuid';
-import { EntityType, baseDetailsPageByEntityType } from '@shared/models/entity-type.models';
 
 const varsRegex = /\${([^}]*)}/g;
 
@@ -115,10 +114,6 @@ export function isNumeric(value: any): boolean {
   return (value - parseFloat(value) + 1) >= 0;
 }
 
-export function isBoolean(value: any): boolean {
-  return typeof value === 'boolean';
-}
-
 export function isString(value: any): boolean {
   return typeof value === 'string';
 }
@@ -130,30 +125,6 @@ export function isEmpty(obj: any): boolean {
     }
   }
   return true;
-}
-
-export function isLiteralObject(value: any) {
-  return (!!value) && (value.constructor === Object);
-}
-
-export function formatValue(value: any, dec?: number, units?: string, showZeroDecimals?: boolean): string | undefined {
-  if (isDefinedAndNotNull(value) && isNumeric(value) &&
-    (isDefinedAndNotNull(dec) || isDefinedAndNotNull(units) || Number(value).toString() === value)) {
-    let formatted: string | number = Number(value);
-    if (isDefinedAndNotNull(dec)) {
-      formatted = formatted.toFixed(dec);
-    }
-    if (!showZeroDecimals) {
-      formatted = (Number(formatted));
-    }
-    formatted = formatted.toString();
-    if (isDefinedAndNotNull(units) && units.length > 0) {
-      formatted += ' ' + units;
-    }
-    return formatted;
-  } else {
-    return value !== null ? value : '';
-  }
 }
 
 export function objectValues(obj: any): any[] {
@@ -183,12 +154,6 @@ export function objToBase64(obj: any): string {
     function toSolidBytes(match, p1) {
       return String.fromCharCode(Number('0x' + p1));
     }));
-}
-
-export function base64toString(b64Encoded: string): string {
-  return decodeURIComponent(atob(b64Encoded).split('').map((c) => {
-    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-  }).join(''));
 }
 
 export function objToBase64URI(obj: any): string {
@@ -302,7 +267,7 @@ export function deepClone<T>(target: T, ignoreFields?: string[]): T {
     return cp.map((n: any) => deepClone<any>(n)) as any;
   }
   if (typeof target === 'object' && target !== {}) {
-    const cp = {...(target as { [key: string]: any })} as { [key: string]: any };
+    const cp = { ...(target as { [key: string]: any }) } as { [key: string]: any };
     Object.keys(cp).forEach(k => {
       if (!ignoreFields || ignoreFields.indexOf(k) === -1) {
         cp[k] = deepClone<any>(cp[k]);
@@ -422,7 +387,7 @@ export function sortObjectKeys<T>(obj: T): T {
 }
 
 export function deepTrim<T>(obj: T): T {
-  if (isNumber(obj) || isUndefined(obj) || isString(obj) || obj === null || obj instanceof File) {
+  if (isNumber(obj) || isUndefined(obj) || isString(obj) || obj === null) {
     return obj;
   }
   return Object.keys(obj).reduce((acc, curr) => {
@@ -449,25 +414,6 @@ export function generateSecret(length?: number): string {
   return str.concat(generateSecret(length - str.length));
 }
 
-export function validateEntityId(entityId: EntityId | null): boolean {
-    return isDefinedAndNotNull(entityId?.id) && entityId.id !== NULL_UUID && isDefinedAndNotNull(entityId?.entityType);
-}
-
-export function isMobileApp(): boolean {
-  return isDefined((window as any).flutter_inappwebview);
-}
-
-const alphanumericCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-const alphanumericCharactersLength = alphanumericCharacters.length;
-
-export function randomAlphanumeric(length: number): string {
-  let result = '';
-  for ( let i = 0; i < length; i++ ) {
-    result += alphanumericCharacters.charAt(Math.floor(Math.random() * alphanumericCharactersLength));
-  }
-  return result;
-}
-
-export function getEntityDetailsPageURL(id: string, entityType: EntityType): string {
-  return `${baseDetailsPageByEntityType.get(entityType)}/${id}`;
+export function validateEntityId(entityId: EntityId): boolean {
+  return isDefinedAndNotNull(entityId.id) && entityId.id !== NULL_UUID && isDefinedAndNotNull(entityId.entityType);
 }
