@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -134,8 +134,6 @@ import org.thingsboard.server.common.data.security.model.SecuritySettings;
 import org.thingsboard.server.common.data.security.model.UserPasswordPolicy;
 import org.thingsboard.server.common.data.sms.config.TestSmsRequest;
 import org.thingsboard.server.common.data.widget.WidgetType;
-import org.thingsboard.server.common.data.widget.WidgetTypeDetails;
-import org.thingsboard.server.common.data.widget.WidgetTypeInfo;
 import org.thingsboard.server.common.data.widget.WidgetsBundle;
 
 import java.io.Closeable;
@@ -328,11 +326,11 @@ public class RestClient implements ClientHttpRequestInterceptor, Closeable {
         params.put("entityType", entityId.getEntityType().name());
         params.put("entityId", entityId.getId().toString());
         params.put("fetchOriginator", String.valueOf(fetchOriginator));
-        if(searchStatus != null) {
+        if (searchStatus != null) {
             params.put("searchStatus", searchStatus.name());
             urlSecondPart += "&searchStatus={searchStatus}";
         }
-        if(status != null) {
+        if (status != null) {
             params.put("status", status.name());
             urlSecondPart += "&status={status}";
         }
@@ -340,7 +338,7 @@ public class RestClient implements ClientHttpRequestInterceptor, Closeable {
         addTimePageLinkToParam(params, pageLink);
 
         return restTemplate.exchange(
-                baseURL +  urlSecondPart + "&" + getTimeUrlParams(pageLink),
+                baseURL + urlSecondPart + "&" + getTimeUrlParams(pageLink),
                 HttpMethod.GET,
                 HttpEntity.EMPTY,
                 new ParameterizedTypeReference<PageData<AlarmInfo>>() {
@@ -2425,11 +2423,11 @@ public class RestClient implements ClientHttpRequestInterceptor, Closeable {
                 }).getBody();
     }
 
-    public Optional<WidgetTypeDetails> getWidgetTypeById(WidgetTypeId widgetTypeId) {
+    public Optional<WidgetType> getWidgetTypeById(WidgetTypeId widgetTypeId) {
         try {
-            ResponseEntity<WidgetTypeDetails> widgetTypeDetails =
-                    restTemplate.getForEntity(baseURL + "/api/widgetType/{widgetTypeId}", WidgetTypeDetails.class, widgetTypeId.getId());
-            return Optional.ofNullable(widgetTypeDetails.getBody());
+            ResponseEntity<WidgetType> widgetType =
+                    restTemplate.getForEntity(baseURL + "/api/widgetType/{widgetTypeId}", WidgetType.class, widgetTypeId.getId());
+            return Optional.ofNullable(widgetType.getBody());
         } catch (HttpClientErrorException exception) {
             if (exception.getStatusCode() == HttpStatus.NOT_FOUND) {
                 return Optional.empty();
@@ -2439,8 +2437,8 @@ public class RestClient implements ClientHttpRequestInterceptor, Closeable {
         }
     }
 
-    public WidgetTypeDetails saveWidgetType(WidgetTypeDetails widgetTypeDetails) {
-        return restTemplate.postForEntity(baseURL + "/api/widgetType", widgetTypeDetails, WidgetTypeDetails.class).getBody();
+    public WidgetType saveWidgetType(WidgetType widgetType) {
+        return restTemplate.postForEntity(baseURL + "/api/widgetType", widgetType, WidgetType.class).getBody();
     }
 
     public void deleteWidgetType(WidgetTypeId widgetTypeId) {
@@ -2453,28 +2451,6 @@ public class RestClient implements ClientHttpRequestInterceptor, Closeable {
                 HttpMethod.GET,
                 HttpEntity.EMPTY,
                 new ParameterizedTypeReference<List<WidgetType>>() {
-                },
-                isSystem,
-                bundleAlias).getBody();
-    }
-
-    public List<WidgetTypeDetails> getBundleWidgetTypesDetails(boolean isSystem, String bundleAlias) {
-        return restTemplate.exchange(
-                baseURL + "/api/widgetTypesDetails?isSystem={isSystem}&bundleAlias={bundleAlias}",
-                HttpMethod.GET,
-                HttpEntity.EMPTY,
-                new ParameterizedTypeReference<List<WidgetTypeDetails>>() {
-                },
-                isSystem,
-                bundleAlias).getBody();
-    }
-
-    public List<WidgetTypeInfo> getBundleWidgetTypesInfos(boolean isSystem, String bundleAlias) {
-        return restTemplate.exchange(
-                baseURL + "/api/widgetTypesInfos?isSystem={isSystem}&bundleAlias={bundleAlias}",
-                HttpMethod.GET,
-                HttpEntity.EMPTY,
-                new ParameterizedTypeReference<List<WidgetTypeInfo>>() {
                 },
                 isSystem,
                 bundleAlias).getBody();
@@ -2904,7 +2880,8 @@ public class RestClient implements ClientHttpRequestInterceptor, Closeable {
                 baseURL + "/api/resource/{resourceId}/download",
                 HttpMethod.GET,
                 HttpEntity.EMPTY,
-                new ParameterizedTypeReference<>() {},
+                new ParameterizedTypeReference<>() {
+                },
                 params
         );
     }
@@ -2917,7 +2894,8 @@ public class RestClient implements ClientHttpRequestInterceptor, Closeable {
                 baseURL + "/api/resource/info/{resourceId}",
                 HttpMethod.GET,
                 HttpEntity.EMPTY,
-                new ParameterizedTypeReference<TbResourceInfo>() {},
+                new ParameterizedTypeReference<TbResourceInfo>() {
+                },
                 params
         ).getBody();
     }
@@ -2930,7 +2908,8 @@ public class RestClient implements ClientHttpRequestInterceptor, Closeable {
                 baseURL + "/api/resource/{resourceId}",
                 HttpMethod.GET,
                 HttpEntity.EMPTY,
-                new ParameterizedTypeReference<TbResource>() {},
+                new ParameterizedTypeReference<TbResource>() {
+                },
                 params
         ).getBody();
     }
@@ -2950,7 +2929,8 @@ public class RestClient implements ClientHttpRequestInterceptor, Closeable {
                 baseURL + "/api/resource?" + getUrlParams(pageLink),
                 HttpMethod.GET,
                 HttpEntity.EMPTY,
-                new ParameterizedTypeReference<PageData<TbResourceInfo>>() {},
+                new ParameterizedTypeReference<PageData<TbResourceInfo>>() {
+                },
                 params
         ).getBody();
     }
@@ -2967,7 +2947,8 @@ public class RestClient implements ClientHttpRequestInterceptor, Closeable {
                 baseURL + "/api/otaPackage/{otaPackageId}/download",
                 HttpMethod.GET,
                 HttpEntity.EMPTY,
-                new ParameterizedTypeReference<>() {},
+                new ParameterizedTypeReference<>() {
+                },
                 params
         );
     }
@@ -2980,7 +2961,8 @@ public class RestClient implements ClientHttpRequestInterceptor, Closeable {
                 baseURL + "/api/otaPackage/info/{otaPackageId}",
                 HttpMethod.GET,
                 HttpEntity.EMPTY,
-                new ParameterizedTypeReference<OtaPackageInfo>() {},
+                new ParameterizedTypeReference<OtaPackageInfo>() {
+                },
                 params
         ).getBody();
     }
@@ -2993,7 +2975,8 @@ public class RestClient implements ClientHttpRequestInterceptor, Closeable {
                 baseURL + "/api/otaPackage/{otaPackageId}",
                 HttpMethod.GET,
                 HttpEntity.EMPTY,
-                new ParameterizedTypeReference<OtaPackage>() {},
+                new ParameterizedTypeReference<OtaPackage>() {
+                },
                 params
         ).getBody();
     }
@@ -3021,7 +3004,7 @@ public class RestClient implements ClientHttpRequestInterceptor, Closeable {
         params.put("checksumAlgorithm", checksumAlgorithm.name());
         String url = "/api/otaPackage/{otaPackageId}?checksumAlgorithm={checksumAlgorithm}";
 
-        if(checkSum != null) {
+        if (checkSum != null) {
             url += "&checkSum={checkSum}";
         }
 

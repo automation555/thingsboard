@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -85,6 +85,20 @@ public abstract class AbstractSqlTimeseriesDao extends BaseAbstractSqlTimeseries
             log.error("SQLException occurred during timeseries TTL task execution ", e);
         }
     }
+
+    public void cleanup(long systemTtl, List<String> excludedKeys) {
+        log.info("Going to cleanup old timeseries data using ttl: {}s without keys {}", systemTtl, excludedKeys);
+        List<Integer> keyIds = excludedKeys.stream().map(this::getOrSaveKeyId).collect(Collectors.toList());
+        long expirationTime = System.currentTimeMillis() - TimeUnit.SECONDS.toMillis(systemTtl);
+        try {
+            long totalRemoved = doCleanup(expirationTime, keyIds);
+            log.info("Total telemetry removed stats by TTL without keys {} for entities: [{}]", excludedKeys, totalRemoved);
+        } catch (Exception e) {
+            log.error("Failed to execute cleanup using ttl: {} without keys {} due to: [{}]", systemTtl, excludedKeys, e.getMessage());
+        }
+    }
+
+    public abstract long doCleanup(long expirationTime, List<Integer> keyIds);
 
     protected ListenableFuture<List<TsKvEntry>> processFindAllAsync(TenantId tenantId, EntityId entityId, List<ReadTsKvQuery> queries) {
         List<ListenableFuture<List<TsKvEntry>>> futures = queries

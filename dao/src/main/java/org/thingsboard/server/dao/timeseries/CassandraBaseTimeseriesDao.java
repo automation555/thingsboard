@@ -1,5 +1,5 @@
 /**
- * Copyright © 2016-2022 The Thingsboard Authors
+ * Copyright © 2016-2021 The Thingsboard Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -293,6 +293,11 @@ public class CassandraBaseTimeseriesDao extends AbstractCassandraBaseTimeseriesD
 
     @Override
     public void cleanup(long systemTtl) {
+        //Cleanup by TTL is native for Cassandra
+    }
+
+    @Override
+    public void cleanup(long systemTtl, List<String> excludedKeys) {
         //Cleanup by TTL is native for Cassandra
     }
 
