@@ -107,7 +107,8 @@
         "general-policy": "Общая политика",
         "max-failed-login-attempts": "Максимальное количество неудачных попыток входа в систему, прежде чем учетная запись заблокирована",
         "minimum-max-failed-login-attempts-range": "Максимальное количество неудачных попыток входа в систему не может быть отрицательным",
-        "user-lockout-notification-email": "В случае блокировки учетной записи пользователя отправьте уведомление на электронную почту"
+        "user-lockout-notification-email": "В случае блокировки учетной записи пользователя отправьте уведомление на электронную почту",
+        "global-search": "Глобальный поиск"
     },
     "alarm": {
         "alarm": "Оповещение",
@@ -816,7 +817,10 @@
         "details": "Подробности об объекте",
         "no-entities-prompt": "Объекты не найдены",
         "no-data": "Нет данных для отображения",
-        "columns-to-display": "Отобразить следующие колонки"
+        "columns-to-display": "Отобразить следующие колонки",
+        "type-tb-resources": "Ресурсы",
+        "type-global-search": "Глобальный поиск",
+        "type-widgets-bundle": "Наборы виджетов"
     },
     "entity-field": {
         "created-time": "Время создания",
@@ -959,9 +963,7 @@
         "messages-processed": "Сообщения обработаны",
         "errors-occurred": "Возникли ошибки",
         "all-events": "Все",
-        "entity-type": "Тип объекта",
-        "clear-request-title": "Удалить все события",
-        "clear-request-text": "Вы точно хотите удалить все события?"
+        "entity-type": "Тип объекта"
     },
     "extension": {
         "extensions": "Расширение",
@@ -1443,6 +1445,19 @@
         "no-tenants-matching": "Владельцы, соответствующие '{{entity}}', не найдены.",
         "tenant-required": "Владелец обязателен"
     },
+    "global-search": {
+        "global-search": "Глобальный поиск",
+        "created-time": "Время создания",
+        "last-activity-time": "Время последней активности",
+        "entity-name": "Название объекта",
+        "entity-type": "Тип",
+        "tenant-name": "Имя пользователя",
+        "owner-name": "Имя владельца",
+        "no-data-text": "Данные не найдены",
+        "search-placeholder": "Поиск {{ type }}",
+        "copy-id": "Копировать Id",
+        "idCopiedMessage": "Id скопирован в буфер обмена"
+    },
     "timeinterval": {
         "seconds-interval": "{ seconds, plural, one {1 секунда} few {# секунды} other {# секунд} }",
         "minutes-interval": "{ minutes, plural, one {1 минута} few {# минуты} other {# минут} }",
@@ -1787,47 +1802,6 @@
             "update-attribute": "Обновить атрибут",
             "update-timeseries": "Обновить телеметрию",
             "value": "Значение"
-        },
-        "persistent-table": {
-            "rpc-id": "RPC ID",
-            "message-type": "Тип сообщения",
-            "method": "Метод",
-            "params": "Параметры",
-            "created-time": "Время создания",
-            "expiration-time": "Время жизни",
-            "retries": "Повторные попытки",
-            "status": "Статус",
-            "filter": "Фильтр",
-            "refresh": "Обновить",
-            "add": "Добавить RPC запрос",
-            "details": "Детали",
-            "delete": "Удалить",
-            "delete-request-title": "Удалить RPC запрос",
-            "delete-request-text": "Вы точно хотите удалить RPC запрос?",
-            "details-title": "Детали RPC ID: ",
-            "additional-info": "Дополнительная информация",
-            "response": "Ответ",
-            "any-status": "Любой статус",
-            "rpc-status-list": "Список RPC статусов",
-            "no-request-prompt": "Запросы не найдены",
-            "send-request": "Отправить запрос",
-            "add-title": "Добавить новый RPC запрос",
-            "method-error": "Метод обязателен.",
-            "white-space-error": "Пробелы не допускаются.",
-            "rpc-status": {
-                "QUEUED": "В ОЧЕРЕДИ",
-                "SENT": "ОТПРАВЛЕННО",
-                "DELIVERED": "ДОСТАВЛЕННО",
-                "SUCCESSFUL": "УСПЕШНО",
-                "TIMEOUT": "ВРЕМЯ ИСТЕКЛО",
-                "EXPIRED": "ПРОСРОЧЕНО",
-                "FAILED": "НЕУДАЧНО"
-            },
-            "rpc-search-status-all": "ВСЕ",
-            "message-types": {
-                "false": "Двусторонний",
-                "true": "Односторонний"
-            }
         }
     },
     "icon": {

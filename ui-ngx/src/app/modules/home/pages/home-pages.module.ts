@@ -1,5 +1,5 @@
 ///
-/// Copyright © 2016-2022 The Thingsboard Authors
+/// Copyright © 2016-2021 The Thingsboard Authors
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import { DeviceProfileModule } from './device-profile/device-profile.module';
 import { ApiUsageModule } from '@home/pages/api-usage/api-usage.module';
 import { EdgeModule } from '@home/pages/edge/edge.module';
 import { OtaUpdateModule } from '@home/pages/ota-update/ota-update.module';
+import { GlobalSearchModule } from '@home/pages/global-search/global-search.module';
 
 @NgModule({
   exports: [
@@ -56,7 +57,8 @@ import { OtaUpdateModule } from '@home/pages/ota-update/ota-update.module';
     AuditLogModule,
     ApiUsageModule,
     OtaUpdateModule,
-    UserModule
+    UserModule,
+    GlobalSearchModule
   ],
   providers: [
     {
