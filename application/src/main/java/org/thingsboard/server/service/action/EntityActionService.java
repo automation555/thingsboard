@@ -15,20 +15,22 @@
  */
 package org.thingsboard.server.service.action;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
+import org.thingsboard.server.cluster.TbClusterService;
 import org.thingsboard.server.common.data.DataConstants;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.HasTenantId;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.audit.ActionType;
-import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -36,12 +38,13 @@ import org.thingsboard.server.common.data.kv.AttributeKvEntry;
 import org.thingsboard.server.common.data.kv.DataType;
 import org.thingsboard.server.common.data.kv.KvEntry;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
+import org.thingsboard.server.common.data.relation.EntityRelation;
+import org.thingsboard.server.common.data.relation.EntitySearchDirection;
 import org.thingsboard.server.common.msg.TbMsg;
 import org.thingsboard.server.common.msg.TbMsgDataType;
 import org.thingsboard.server.common.msg.TbMsgMetaData;
 import org.thingsboard.server.dao.audit.AuditLogService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
-import org.thingsboard.server.cluster.TbClusterService;
 
 import java.util.List;
 import java.util.Map;
@@ -57,6 +60,7 @@ public class EntityActionService {
 
     private static final ObjectMapper json = new ObjectMapper();
 
+    @SuppressWarnings("unchecked")
     public void pushEntityActionToRuleEngine(EntityId entityId, HasName entity, TenantId tenantId, CustomerId customerId,
                                              ActionType actionType, User user, Object... additionalInfo) {
         String msgType = null;
@@ -115,6 +119,13 @@ public class EntityActionService {
             case UNASSIGNED_FROM_EDGE:
                 msgType = DataConstants.ENTITY_UNASSIGNED_FROM_EDGE;
                 break;
+            case RELATION_ADD_OR_UPDATE:
+                msgType = DataConstants.RELATION_ADD_OR_UPDATE;
+                break;
+            case RELATIONS_DELETED:
+            case RELATION_DELETED:
+                msgType = DataConstants.RELATION_DELETED;
+                break;
         }
         if (!StringUtils.isEmpty(msgType)) {
             try {
@@ -158,6 +169,7 @@ public class EntityActionService {
                     metaData.putValue("unassignedEdgeName", strEdgeName);
                 }
                 ObjectNode entityNode;
+                List<EntityRelation> relations = null;
                 if (entity != null) {
                     entityNode = json.valueToTree(entity);
                     if (entityId.getEntityType() == EntityType.DASHBOARD) {
@@ -167,7 +179,6 @@ public class EntityActionService {
                     entityNode = json.createObjectNode();
                     if (actionType == ActionType.ATTRIBUTES_UPDATED) {
                         String scope = extractParameter(String.class, 0, additionalInfo);
-                        @SuppressWarnings("unchecked")
                         List<AttributeKvEntry> attributes = extractParameter(List.class, 1, additionalInfo);
                         metaData.putValue(DataConstants.SCOPE, scope);
                         if (attributes != null) {
@@ -177,7 +188,6 @@ public class EntityActionService {
                         }
                     } else if (actionType == ActionType.ATTRIBUTES_DELETED) {
                         String scope = extractParameter(String.class, 0, additionalInfo);
-                        @SuppressWarnings("unchecked")
                         List<String> keys = extractParameter(List.class, 1, additionalInfo);
                         metaData.putValue(DataConstants.SCOPE, scope);
                         ArrayNode attrsArrayNode = entityNode.putArray("attributes");
@@ -185,11 +195,9 @@ public class EntityActionService {
                             keys.forEach(attrsArrayNode::add);
                         }
                     } else if (actionType == ActionType.TIMESERIES_UPDATED) {
-                        @SuppressWarnings("unchecked")
                         List<TsKvEntry> timeseries = extractParameter(List.class, 0, additionalInfo);
                         addTimeseries(entityNode, timeseries);
                     } else if (actionType == ActionType.TIMESERIES_DELETED) {
-                        @SuppressWarnings("unchecked")
                         List<String> keys = extractParameter(List.class, 0, additionalInfo);
                         if (keys != null) {
                             ArrayNode timeseriesArrayNode = entityNode.putArray("timeseries");
@@ -197,23 +205,63 @@ public class EntityActionService {
                         }
                         entityNode.put("startTs", extractParameter(Long.class, 1, additionalInfo));
                         entityNode.put("endTs", extractParameter(Long.class, 2, additionalInfo));
+                    } else if (actionType == ActionType.RELATION_ADD_OR_UPDATE || actionType == ActionType.RELATION_DELETED) {
+                        EntityRelation relation = extractParameter(EntityRelation.class, 0, additionalInfo);
+                        metaData.putValue(DataConstants.RELATION_DIRECTION_MSG_ORIGINATOR, getRelationDirectionValue(entityId, relation));
+                        entityNode = json.valueToTree(relation);
+                    } else if (actionType == ActionType.RELATIONS_DELETED) {
+                        relations = extractParameter(List.class, 0, additionalInfo);
                     }
                 }
-                TbMsg tbMsg = TbMsg.newMsg(msgType, entityId, customerId, metaData, TbMsgDataType.JSON, json.writeValueAsString(entityNode));
-                if (tenantId.isNullUid()) {
-                    if (entity instanceof HasTenantId) {
-                        tenantId = ((HasTenantId) entity).getTenantId();
+
+                if (relations != null) {
+                    for (EntityRelation relation : relations) {
+                        ObjectNode objectNode = json.valueToTree(relation);
+
+                        TbMsgMetaData metaDataFrom = prepareRelationMetadata(metaData, EntitySearchDirection.FROM);
+                        prepareAndPushMsgToRuleEngine(relation.getFrom(), entity, tenantId, customerId, msgType, metaDataFrom, objectNode);
+
+                        TbMsgMetaData metaDataTo = prepareRelationMetadata(metaData, EntitySearchDirection.TO);
+                        prepareAndPushMsgToRuleEngine(relation.getTo(), entity, tenantId, customerId, msgType, metaDataTo, objectNode);
                     }
+                } else {
+                    prepareAndPushMsgToRuleEngine(entityId, entity, tenantId, customerId, msgType, metaData, entityNode);
                 }
-                tbClusterService.pushMsgToRuleEngine(tenantId, entityId, tbMsg, null);
             } catch (Exception e) {
                 log.warn("[{}] Failed to push entity action to rule engine: {}", entityId, actionType, e);
             }
         }
     }
 
-    public  <E extends HasName, I extends EntityId> void logEntityAction(User user, I entityId, E entity, CustomerId customerId,
-                                                                           ActionType actionType, Exception e, Object... additionalInfo) {
+    @NotNull
+    private TbMsgMetaData prepareRelationMetadata(TbMsgMetaData metaData, EntitySearchDirection direction) {
+        TbMsgMetaData metaDataCopy = metaData.copy();
+        metaDataCopy.putValue(DataConstants.RELATION_DIRECTION_MSG_ORIGINATOR, direction.name());
+        return metaDataCopy;
+    }
+
+    private String getRelationDirectionValue(EntityId entityId, EntityRelation relation) {
+        return entityId.getId().equals(relation.getFrom().getId()) ? EntitySearchDirection.FROM.name() : EntitySearchDirection.TO.name();
+    }
+
+    private void prepareAndPushMsgToRuleEngine(EntityId entityId,
+                                               HasName entity,
+                                               TenantId tenantId,
+                                               CustomerId customerId,
+                                               String msgType,
+                                               TbMsgMetaData metaData,
+                                               ObjectNode entityNode) throws JsonProcessingException {
+        TbMsg tbMsg = TbMsg.newMsg(msgType, entityId, customerId, metaData, TbMsgDataType.JSON, json.writeValueAsString(entityNode));
+        if (tenantId.isNullUid()) {
+            if (entity instanceof HasTenantId) {
+                tenantId = ((HasTenantId) entity).getTenantId();
+            }
+        }
+        tbClusterService.pushMsgToRuleEngine(tenantId, entityId, tbMsg, null);
+    }
+
+    public <E extends HasName, I extends EntityId> void logEntityAction(User user, I entityId, E entity, CustomerId customerId,
+                                                                        ActionType actionType, Exception e, Object... additionalInfo) {
         if (customerId == null || customerId.isNullUid()) {
             customerId = user.getCustomerId();
         }

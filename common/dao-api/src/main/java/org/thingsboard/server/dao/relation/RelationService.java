@@ -80,7 +80,7 @@ public interface RelationService {
 
     ListenableFuture<List<EntityRelationInfo>> findInfoByQuery(TenantId tenantId, EntityRelationsQuery query);
 
-    void removeRelations(TenantId tenantId, EntityId entityId);
+    List<EntityRelation> removeRelations(TenantId tenantId, EntityId entityId);
 
     List<EntityRelation> findRuleNodeToRuleChainRelations(TenantId tenantId, RuleChainType ruleChainType, int limit);
 
